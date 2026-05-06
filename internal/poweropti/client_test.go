@@ -12,20 +12,29 @@ import (
 	"github.com/fedzzito/power-bridge/internal/poweropti"
 )
 
-// mockPoweropti starts a fake poweropti HTTP server that returns the given watts.
+// mockPoweropti starts a fake poweropti HTTP server that returns the given watts
+// using the local REST API format (GET /value, X-API-KEY header).
 func mockPoweropti(t *testing.T, watts float64) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "testapikey" || pass != "testapikey" {
+		if r.URL.Path != "/value" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("X-API-KEY") != "testapikey" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"currentwatt": watts,
-			"isvalid":     true,
-			"obis1_8_0":   100.5,
-			"obis2_8_0":   10.25,
+			"timestamp": 1757053304,
+			"values": []map[string]any{
+				{"obis": "1.7.0", "value": watts},
+				{"obis": "1.8.0", "value": 17784955.0}, // Wh consumed
+				{"obis": "1.8.1", "value": 17784955.0},
+				{"obis": "1.8.2", "value": 0.0},
+				{"obis": "2.8.0", "value": 181.0}, // Wh delivered
+			},
 		})
 	}))
 }
@@ -51,9 +60,15 @@ func TestClientPollsAndUpdatesReading(t *testing.T) {
 	for time.Now().Before(deadline) {
 		rd := client.Latest()
 		if rd.Valid && rd.Watt == 1500.0 {
-			// Also check energy counters (100.5 kWh → 100500 Wh)
-			if rd.ConsumedWh != 100500.0 {
-				t.Errorf("ConsumedWh: want 100500, got %v", rd.ConsumedWh)
+			// Energy counters are returned in Wh directly per spec
+			if rd.ConsumedWh != 17784955.0 {
+				t.Errorf("ConsumedWh: want 17784955, got %v", rd.ConsumedWh)
+			}
+			if rd.DeliveredWh != 181.0 {
+				t.Errorf("DeliveredWh: want 181, got %v", rd.DeliveredWh)
+			}
+			if rd.PoweroptiTimestamp != 1757053304 {
+				t.Errorf("PoweroptiTimestamp: want 1757053304, got %v", rd.PoweroptiTimestamp)
 			}
 			return
 		}
@@ -87,6 +102,32 @@ func TestClientFeedInNegative(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Errorf("expected watt=-800, got %+v", client.Latest())
+}
+
+func TestClientUnauthorized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	cfg := config.Defaults()
+	cfg.PoweroptiIP = srv.Listener.Addr().String()
+	cfg.PoweroptiAPIKey = "wrongkey"
+	cfg.PollIntervalS = 1
+	cfg.StaleTimeoutS = 2
+
+	client := poweropti.NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	client.Run(ctx)
+
+	rd := client.Latest()
+	if rd.Valid {
+		t.Error("reading should not be valid after 401 response")
+	}
+	if client.ConsecutiveErrors() == 0 {
+		t.Error("expected at least one consecutive error after 401")
+	}
 }
 
 func TestClientLatestThreadSafe(t *testing.T) {
@@ -127,4 +168,3 @@ func TestClientFreshHasNoValidReading(t *testing.T) {
 		t.Error("fresh client At should be zero time")
 	}
 }
-

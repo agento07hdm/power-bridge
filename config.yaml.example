@@ -8,9 +8,14 @@ wifi_ssid: "MyHomeWifi"
 wifi_password: "supersecret"
 
 # ── powerfox poweropti ───────────────────────────────────────────────────────
-# Local IP address of the poweropti device
+# Local IP address (or hostname) of the poweropti device.
+# Examples:  192.168.1.50   or   poweropti
 poweropti_ip: "192.168.1.100"
-# API key (= device serial number, used as HTTP Basic Auth password)
+
+# API key sent as the X-API-KEY request header.
+# The initial value is the 12-character device-ID printed on the device
+# (e.g. "1097bd725557").  Use the literal string "null" (without quotes) if
+# the device is configured without a key.
 poweropti_api_key: "MY_API_KEY"
 
 # ── Virtual Shelly identity ───────────────────────────────────────────────────

@@ -31,6 +31,7 @@ h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;mar
 .alert-success{background:#064e3b;color:#6ee7b7}
 .endpoints{font-family:monospace;font-size:.8rem;color:#5b8dee}
 .endpoint{display:block;padding:.2rem 0}
+.age{font-size:.8rem;color:#6b7280}
 </style>
 </head>
 <body>
@@ -55,11 +56,20 @@ h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;mar
     <span class="label">IP</span>
     <span class="value">{{.PoweroptiIP}}</span>
   </div>
+  <div class="row">
+    <span class="label">Letzter Messwert</span>
+    <span class="value age" id="po-age">{{if .LastReadAt}}{{.PoweroptiAge}}{{else}}–{{end}}</span>
+  </div>
 </div>
 
 <div class="card">
   <h2>Aktuelle Leistung</h2>
   <div class="big-watt" id="watt-display">{{.WattDisplay}}</div>
+  <div style="text-align:center;margin-top:.5rem">
+    <span class="value" id="consumed-display" style="font-size:.9rem;color:#aaa"></span>
+    <span style="color:#555;margin:0 .4rem">·</span>
+    <span class="value" id="delivered-display" style="font-size:.9rem;color:#aaa"></span>
+  </div>
 </div>
 
 <div class="card">
@@ -89,14 +99,47 @@ h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;mar
 </div>
 
 <script>
+// Format age of a RFC3339 timestamp
+function ageStr(iso){
+  if(!iso) return '–';
+  var diff=Math.round((Date.now()-new Date(iso).getTime())/1000);
+  if(diff<0) diff=0;
+  if(diff<60) return diff+'s ago';
+  return Math.round(diff/60)+'m ago';
+}
+
+function fmtWh(wh){
+  if(wh==null) return '';
+  if(wh>=1e6) return (wh/1e6).toFixed(2)+' MWh';
+  if(wh>=1e3) return (wh/1e3).toFixed(1)+' kWh';
+  return wh.toFixed(0)+' Wh';
+}
+
 (function poll(){
   fetch('/api/status').then(r=>r.json()).then(function(d){
+    // Watt display
     var w=d.watt;
     var txt= w>=0 ? w.toFixed(1)+' W (Bezug)' : (-w).toFixed(1)+' W (Einspeisung)';
     document.getElementById('watt-display').textContent=d.poweropti_ok?txt:'–';
+
+    // Status row
     var s=document.getElementById('po-status');
     s.textContent=d.poweropti_ok?'✓ Erreichbar':'✗ Fehler ('+d.errors+')';
     s.className='value '+(d.poweropti_ok?'ok':'err');
+
+    // Age
+    document.getElementById('po-age').textContent=ageStr(d.last_read_at);
+
+    // Energy counters
+    var cEl=document.getElementById('consumed-display');
+    var dEl=document.getElementById('delivered-display');
+    if(d.poweropti_ok){
+      cEl.textContent='↓ Bezug: '+fmtWh(d.consumed_wh);
+      dEl.textContent='↑ Einspeisung: '+fmtWh(d.delivered_wh);
+    } else {
+      cEl.textContent='';
+      dEl.textContent='';
+    }
   }).catch(function(){});
   setTimeout(poll,3000);
 })();
@@ -104,7 +147,7 @@ h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;mar
 function testPoweropti(){
   fetch('/api/test/poweropti').then(r=>r.json()).then(function(d){
     document.getElementById('action-msg').textContent=
-      d.valid ? 'OK: '+d.watt.toFixed(1)+' W' : 'Fehler: '+JSON.stringify(d);
+      d.valid ? 'OK: '+d.watt.toFixed(1)+' W, Alter: '+d.age_s.toFixed(1)+'s' : 'Fehler: '+JSON.stringify(d);
   });
 }
 function restartService(){

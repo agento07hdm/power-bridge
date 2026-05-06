@@ -13,14 +13,18 @@ import (
 // --------------------------------------------------------------------------
 
 type statusPageData struct {
-	Hostname     string
-	Configured   bool
-	PoweroptiOK  bool
-	PoweroptiIP  string
-	WattDisplay  string
-	Errors       int
-	Logs         []string
-	SetupDone    bool
+	Hostname    string
+	Configured  bool
+	PoweroptiOK bool
+	PoweroptiIP string
+	WattDisplay string
+	Errors      int
+	Logs        []string
+	SetupDone   bool
+	// LastReadAt is the RFC3339 timestamp of the last successful poweropti poll.
+	LastReadAt string
+	// PoweroptiAge is a human-readable age string (e.g. "3s ago").
+	PoweroptiAge string
 }
 
 func (s *Server) statusPage(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +51,10 @@ func (s *Server) buildStatusPageData(r *http.Request) statusPageData {
 		} else {
 			data.WattDisplay = "–"
 		}
+		if !rd.At.IsZero() {
+			data.LastReadAt = rd.At.UTC().Format(time.RFC3339)
+			data.PoweroptiAge = formatAge(time.Since(rd.At))
+		}
 	}
 	return data
 }
@@ -63,18 +71,31 @@ func jsonFloat(f float64) string {
 	return string(b)
 }
 
+func formatAge(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return d.String() + " ago"
+	}
+	if d < time.Hour {
+		return d.Round(time.Second).String() + " ago"
+	}
+	return "> 1h ago"
+}
+
 // --------------------------------------------------------------------------
 // /api/status  – JSON for live UI updates
 // --------------------------------------------------------------------------
 
 type apiStatusResponse struct {
-	Configured    bool    `json:"configured"`
-	PoweroptiOK   bool    `json:"poweropti_ok"`
-	Watt          float64 `json:"watt"`
-	ConsumedWh    float64 `json:"consumed_wh"`
-	DeliveredWh   float64 `json:"delivered_wh"`
-	Errors        int     `json:"errors"`
-	UptimeSeconds int64   `json:"uptime_s"`
+	Configured         bool    `json:"configured"`
+	PoweroptiOK        bool    `json:"poweropti_ok"`
+	Watt               float64 `json:"watt"`
+	ConsumedWh         float64 `json:"consumed_wh"`
+	DeliveredWh        float64 `json:"delivered_wh"`
+	Errors             int     `json:"errors"`
+	UptimeSeconds      int64   `json:"uptime_s"`
+	LastReadAt         string  `json:"last_read_at"`          // RFC3339 or ""
+	PoweroptiTimestamp int64   `json:"poweropti_timestamp"`   // device unix epoch
 }
 
 func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +111,10 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 		resp.ConsumedWh = rd.ConsumedWh
 		resp.DeliveredWh = rd.DeliveredWh
 		resp.Errors = s.poller.ConsecutiveErrors()
+		resp.PoweroptiTimestamp = rd.PoweroptiTimestamp
+		if !rd.At.IsZero() {
+			resp.LastReadAt = rd.At.UTC().Format(time.RFC3339)
+		}
 	}
 	_ = json.NewEncoder(w).Encode(resp)
 }
@@ -138,10 +163,11 @@ func (s *Server) apiTestPoweropti(w http.ResponseWriter, r *http.Request) {
 		ageS = time.Since(rd.At).Seconds()
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"valid":        rd.Valid,
-		"watt":         rd.Watt,
-		"consumed_wh":  rd.ConsumedWh,
-		"delivered_wh": rd.DeliveredWh,
-		"age_s":        ageS,
+		"valid":                rd.Valid,
+		"watt":                 rd.Watt,
+		"consumed_wh":          rd.ConsumedWh,
+		"delivered_wh":         rd.DeliveredWh,
+		"age_s":                ageS,
+		"poweropti_timestamp":  rd.PoweroptiTimestamp,
 	})
 }

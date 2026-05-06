@@ -3,22 +3,24 @@
 //
 // The poweropti exposes its readings at:
 //
-//	GET http://<ip>/api/user/current
+//	GET http://<ip>/value
 //
-// Authentication uses HTTP Basic Auth with the API key as both username and
-// password (as documented by powerfox for the local endpoint).
+// Authentication uses the HTTP header X-API-KEY. The key is either the
+// 12-character device-ID (e.g. "1097bd725557") or the literal string "null",
+// depending on the device configuration.
 //
 // Response (JSON):
 //
 //	{
-//	  "currentwatt": 1234.5,   // current power in W  (>0 = consume, <0 = feed)
-//	  "isvalid": true,
-//	  "obis1_8_0": 12345.678,  // total consumed energy in kWh
-//	  "obis2_8_0":   100.000   // total delivered energy in kWh
+//	  "timestamp": 1757053304,
+//	  "values": [
+//	    { "obis": "1.7.0", "value": 228     },  // W  (>0 consume, <0 feed)
+//	    { "obis": "1.8.0", "value": 17784955 }, // Wh consumed (total)
+//	    { "obis": "1.8.1", "value": 17784955 }, // Wh consumed (HT)
+//	    { "obis": "1.8.2", "value": 0         }, // Wh consumed (NT)
+//	    { "obis": "2.8.0", "value": 181       }  // Wh delivered (total)
+//	  ]
 //	}
-//
-// If the device returns a different schema the MWatt field (milliwatts) is
-// also supported as fallback.
 package poweropti
 
 import (
@@ -49,19 +51,23 @@ type Reading struct {
 	// Valid indicates whether the latest poll succeeded.
 	Valid bool
 
-	// Timestamp of the last successful poll.
+	// At is the timestamp of the last successful poll (local clock).
 	At time.Time
+
+	// PoweroptiTimestamp is the Unix epoch reported by the device itself (UTC).
+	PoweroptiTimestamp int64
 }
 
-// apiResponse maps the JSON fields returned by the poweropti local API.
+// obisEntry is one element of the "values" array in the API response.
+type obisEntry struct {
+	Obis  string  `json:"obis"`
+	Value float64 `json:"value"`
+}
+
+// apiResponse maps the JSON returned by the poweropti local /value endpoint.
 type apiResponse struct {
-	CurrentWatt float64 `json:"currentwatt"`
-	MWatt       float64 `json:"mw"`       // milliwatts – alternate format
-	IsValid     *bool   `json:"isvalid"`  // pointer distinguishes absent from false
-	Obis180     float64 `json:"obis1_8_0"` // kWh consumed
-	Obis280     float64 `json:"obis2_8_0"` // kWh delivered
-	WhIn        float64 `json:"wh_in"`     // alternate: Wh consumed
-	WhOut       float64 `json:"wh_out"`    // alternate: Wh delivered
+	Timestamp int64        `json:"timestamp"`
+	Values    []obisEntry  `json:"values"`
 }
 
 // Client polls the poweropti and exposes the latest Reading.
@@ -131,7 +137,7 @@ func (c *Client) poll() {
 }
 
 func (c *Client) fetch() (*Reading, error) {
-	url := fmt.Sprintf("http://%s/api/user/current", c.cfg.PoweroptiIP)
+	url := fmt.Sprintf("http://%s/value", c.cfg.PoweroptiIP)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -140,7 +146,7 @@ func (c *Client) fetch() (*Reading, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(c.cfg.PoweroptiAPIKey, c.cfg.PoweroptiAPIKey)
+	req.Header.Set("X-API-KEY", c.cfg.PoweroptiAPIKey)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -149,6 +155,9 @@ func (c *Client) fetch() (*Reading, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("poweropti returned 401 Unauthorized – API key wrong or interface not enabled")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
@@ -158,36 +167,29 @@ func (c *Client) fetch() (*Reading, error) {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	// Determine validity.
-	// When the API includes isvalid, trust it explicitly.
-	// When isvalid is absent (older firmware), fall back to non-zero power.
-	var valid bool
-	switch {
-	case ar.IsValid != nil:
-		valid = *ar.IsValid
-	default:
-		valid = ar.CurrentWatt != 0 || ar.MWatt != 0
+	if ar.Timestamp == 0 {
+		return nil, fmt.Errorf("invalid response: timestamp is zero")
 	}
+
+	// Extract values by OBIS code.
+	obisMap := make(map[string]float64, len(ar.Values))
+	for _, v := range ar.Values {
+		obisMap[v.Obis] = v.Value
+	}
+
+	// 1.7.0 is the instantaneous power and must be present.
+	watt, ok := obisMap["1.7.0"]
+	if !ok {
+		return nil, fmt.Errorf("response missing OBIS 1.7.0 (instantaneous power)")
+	}
+
 	reading := &Reading{
-		Valid: valid,
-		At:    time.Now(),
-	}
-
-	// Prefer currentwatt; fall back to mw (milliwatts).
-	switch {
-	case ar.CurrentWatt != 0:
-		reading.Watt = ar.CurrentWatt
-	case ar.MWatt != 0:
-		reading.Watt = ar.MWatt / 1000.0
-	}
-
-	// Energy counters: prefer OBIS codes (kWh → Wh), fall back to wh_in/wh_out.
-	if ar.Obis180 != 0 {
-		reading.ConsumedWh = ar.Obis180 * 1000
-		reading.DeliveredWh = ar.Obis280 * 1000
-	} else {
-		reading.ConsumedWh = ar.WhIn
-		reading.DeliveredWh = ar.WhOut
+		Watt:               watt,
+		ConsumedWh:         obisMap["1.8.0"], // already in Wh per spec
+		DeliveredWh:        obisMap["2.8.0"], // already in Wh per spec
+		Valid:              true,
+		At:                 time.Now(),
+		PoweroptiTimestamp: ar.Timestamp,
 	}
 
 	return reading, nil
