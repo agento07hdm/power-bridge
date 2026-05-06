@@ -67,9 +67,6 @@ Ein powerfox **poweropti** wird lokal ausgelesen und als virtueller **Shelly Pro
 ```bash
 ssh-keygen -R 192.168.2.112
 ssh pi@<PI_IP>
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y git curl wget
 curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash
 ```
 
