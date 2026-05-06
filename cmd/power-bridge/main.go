@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,16 +15,24 @@ import (
 	"github.com/fedzzito/power-bridge/internal/server"
 )
 
+var version = "dev"
+
 var (
-	configFile = flag.String("config", "/etc/power-bridge/config.yaml", "path to config file")
-	listenAddr = flag.String("listen", "", "HTTP listen address (overrides config, e.g. :8080)")
+	configFile  = flag.String("config", "/etc/power-bridge/config.yaml", "path to config file")
+	listenAddr  = flag.String("listen", "", "HTTP listen address (overrides config, e.g. :8080)")
+	showVersion = flag.Bool("version", false, "print version and exit")
 )
 
 func main() {
 	flag.Parse()
 
+	if *showVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Printf("power-bridge starting, config=%s", *configFile)
+	log.Printf("power-bridge %s starting, config=%s", version, *configFile)
 
 	cfg, err := config.Load(*configFile)
 	if err != nil {
