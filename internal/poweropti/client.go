@@ -171,7 +171,7 @@ func (c *Client) fetch() (*Reading, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("X-API-KEY", c.cfg.PoweroptiAPIKey)
+	req.Header["X-API-KEY"] = []string{c.cfg.PoweroptiAPIKey}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
