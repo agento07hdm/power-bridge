@@ -21,7 +21,11 @@ func mockPoweropti(t *testing.T, watts float64) *httptest.Server {
 			http.NotFound(w, r)
 			return
 		}
-		if r.Header.Get("X-API-KEY") != "testapikey" {
+		apiKey := r.Header["X-API-KEY"]
+		if len(apiKey) == 0 {
+			apiKey = r.Header["X-Api-Key"]
+		}
+		if len(apiKey) == 0 || apiKey[0] != "testapikey" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
