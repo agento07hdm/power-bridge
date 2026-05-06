@@ -49,7 +49,7 @@ jobs:
             ./cmd/power-bridge
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: binary
           path: power-bridge-${{ github.ref_name }}-linux-armv6
@@ -60,7 +60,7 @@ jobs:
     needs: build
     steps:
       - name: Download binary artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.8
         with:
           name: binary
 
