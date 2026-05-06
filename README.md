@@ -50,8 +50,8 @@ Ein powerfox **poweropti** wird lokal ausgelesen und als virtueller **Shelly Pro
 3. OS wählen: **Raspberry Pi OS Lite (32-bit)**
 4. Speicher wählen: SD-Karte
 5. Zahnrad-Symbol → **Erweiterte Optionen**:
-   - Hostname: `shellypro3em-poweropti`
-   - SSH aktivieren
+   - Hostname: `power-bridge`
+   - SSH aktivieren, Benutzer `pi` mit Passwort
    - _(WiFi erst nach der Installation über power-bridge einrichten)_
 6. Schreiben starten
 
@@ -59,38 +59,40 @@ Ein powerfox **poweropti** wird lokal ausgelesen und als virtueller **Shelly Pro
 
 ## Installation
 
-### Binärdatei kompilieren (auf dem Entwicklungsrechner)
+### Auf dem Pi installieren (empfohlen)
 
 ```bash
-# ARMv6 (Raspberry Pi Zero W)
-GOOS=linux GOARCH=arm GOARM=6 go build -ldflags="-s -w" \
-    -o power-bridge-armv6 ./cmd/power-bridge
-```
-
-### Auf dem Pi installieren
-
-```bash
-# Binärdatei auf den Pi kopieren
-scp power-bridge-armv6 pi@<PI_IP>:/tmp/power-bridge
-
-# SSH auf den Pi
 ssh pi@<PI_IP>
-sudo -i
-
-# Installationsskript ausführen
-cd /tmp
-git clone https://github.com/fedzzito/power-bridge  # oder Dateien manuell kopieren
-cd power-bridge
-BINARY_SRC=/tmp/power-bridge bash install.sh
+curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash
 ```
 
 Das Skript:
+- Ermittelt automatisch die neueste Release-Version von GitHub
+- Lädt die fertige ARMv6-Binary herunter (kein Compiler nötig)
 - Installiert hostapd, dnsmasq, avahi-daemon
-- Kopiert die Binärdatei nach `/usr/local/bin/power-bridge`
-- Legt `/etc/power-bridge/config.yaml` an
-- Richtet den systemd-Service ein
+- Legt `/etc/power-bridge/config.yaml` an (nur wenn noch keine existiert)
+- Richtet den systemd-Service ein (als Heredoc eingebettet, kein git clone nötig)
 - Registriert den mDNS-Service bei Avahi
 - Startet den Access Point "ShellyMeter-Setup"
+
+---
+
+## Image erstellen (für Serienproduktion)
+
+```bash
+# Auf dem Pi – vor dem Ziehen des Images:
+sudo bash /usr/local/share/power-bridge/prepare-image.sh
+sudo shutdown -h now
+# SD-Karte am PC mit dd oder rpi-imager lesen/klonen
+```
+
+Das Skript `prepare-image.sh`:
+- Stoppt power-bridge
+- Löscht SSH-Host-Keys (werden beim nächsten Boot neu generiert)
+- Löscht Machine-ID
+- Bereinigt Log-Dateien und DHCP-Leases
+- Setzt die Konfiguration auf unkonfigurierte Defaults zurück (`configured: false`)
+- Löscht die Bash-History
 
 ---
 
@@ -116,29 +118,33 @@ Das Skript:
 Die poweropti-Abfrage erfolgt gegen:
 
 ```
-GET http://<poweropti_ip>/api/user/current
-Authorization: Basic base64(<api_key>:<api_key>)
+GET http://<poweropti_ip>/value
+X-API-KEY: <api_key>
 ```
 
 Erwartetes JSON-Format:
 
 ```json
 {
-  "currentwatt": 1234.5,
-  "isvalid": true,
-  "obis1_8_0": 12345.678,
-  "obis2_8_0": 100.000
+  "obis": [
+    { "measurand": "1-0:1.7.0", "value": 1234.5 },
+    { "measurand": "1-0:1.8.0", "value": 12345.678 },
+    { "measurand": "1-0:2.8.0", "value": 100.000 }
+  ]
 }
 ```
 
-| Feld | Bedeutung |
+| OBIS-Kennung | Bedeutung |
 |---|---|
-| `currentwatt` | Aktuelle Leistung in W (>0 = Bezug, <0 = Einspeisung) |
-| `isvalid` | Ob die Messung gültig ist |
-| `obis1_8_0` | Gesamtenergie Bezug (kWh, OBIS 1.8.0) |
-| `obis2_8_0` | Gesamtenergie Einspeisung (kWh, OBIS 2.8.0) |
+| `1-0:1.7.0` | Aktuelle Leistung in W (Bezug) |
+| `1-0:2.7.0` | Aktuelle Leistung in W (Einspeisung) |
+| `1-0:1.8.0` | Gesamtenergie Bezug (kWh) |
+| `1-0:2.8.0` | Gesamtenergie Einspeisung (kWh) |
 
-Alternativ werden `mw` (Milliwatt) und `wh_in`/`wh_out` unterstützt.
+> **Authentifizierung:** Header `X-API-KEY` mit dem 12-stelligen Geräte-ID (z. B. `1097bd725557`)
+> oder dem Literalwert `null` (ohne Anführungszeichen) falls kein Schlüssel konfiguriert ist.
+
+Alternativ werden `currentwatt`/`mw` und `obis1_8_0`/`wh_in` etc. im Legacy-Format unterstützt.
 
 ---
 
@@ -314,6 +320,16 @@ go run ./cmd/power-bridge \
 curl "http://localhost:8080/rpc/EM.GetStatus?id=0"
 curl "http://localhost:8080/rpc/Shelly.GetDeviceInfo"
 ```
+
+### ARMv6-Binary lokal bauen (optional)
+
+```bash
+GOOS=linux GOARCH=arm GOARM=6 CGO_ENABLED=0 \
+    go build -ldflags="-s -w -X main.version=dev" -trimpath \
+    -o power-bridge-dev-linux-armv6 ./cmd/power-bridge
+```
+
+GitHub Actions baut und veröffentlicht automatisch eine fertige Binary bei jedem `v*.*.*`-Tag.
 
 ---
 
