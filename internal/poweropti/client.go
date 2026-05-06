@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,10 +73,11 @@ type apiResponse struct {
 
 // Client polls the poweropti and exposes the latest Reading.
 type Client struct {
-	cfg    *config.Config
-	mu     sync.RWMutex
-	latest Reading
-	errors int // consecutive error count
+	cfg     *config.Config
+	mu      sync.RWMutex
+	latest  Reading
+	errors  int    // consecutive error count
+	lastErr string // last poll error message
 }
 
 // NewClient creates a Client from the given config.
@@ -119,12 +121,27 @@ func (c *Client) ConsecutiveErrors() int {
 	return c.errors
 }
 
+// LastError returns the error message from the most recent failed poll,
+// or an empty string if the last poll succeeded.
+func (c *Client) LastError() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.lastErr
+}
+
+// FetchOnce performs a single HTTP request to the poweropti and returns the
+// result. It does not update the client's cached reading.
+func (c *Client) FetchOnce() (*Reading, error) {
+	return c.fetch()
+}
+
 func (c *Client) poll() {
 	r, err := c.fetch()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err != nil {
 		c.errors++
+		c.lastErr = err.Error()
 		stale := time.Duration(c.cfg.StaleTimeoutS) * time.Second
 		if time.Since(c.latest.At) > stale {
 			c.latest.Valid = false
@@ -133,11 +150,19 @@ func (c *Client) poll() {
 		return
 	}
 	c.errors = 0
+	c.lastErr = ""
 	c.latest = *r
 }
 
 func (c *Client) fetch() (*Reading, error) {
-	url := fmt.Sprintf("http://%s/value", c.cfg.PoweroptiIP)
+	ip := c.cfg.PoweroptiIP
+	ip = strings.TrimPrefix(ip, "https://")
+	ip = strings.TrimPrefix(ip, "http://")
+	ip = strings.TrimRight(ip, "/")
+	if ip == "" {
+		return nil, fmt.Errorf("poweropti IP not configured")
+	}
+	url := fmt.Sprintf("http://%s/value", ip)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
