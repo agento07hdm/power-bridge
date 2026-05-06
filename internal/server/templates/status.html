@@ -52,6 +52,7 @@ h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;mar
       {{if .PoweroptiOK}}✓ Erreichbar{{else}}✗ Fehler{{end}}
     </span>
   </div>
+  <div id="po-error" style="display:none;color:#f87171;font-size:.82rem;padding:.35rem 0 0"></div>
   <div class="row">
     <span class="label">IP</span>
     <span class="value">{{.PoweroptiIP}}</span>
@@ -127,6 +128,16 @@ function fmtWh(wh){
     s.textContent=d.poweropti_ok?'✓ Erreichbar':'✗ Fehler ('+d.errors+')';
     s.className='value '+(d.poweropti_ok?'ok':'err');
 
+    // Last error
+    var errEl=document.getElementById('po-error');
+    if(d.last_error){
+      var msg=d.last_error.length>200?d.last_error.slice(0,200)+'…':d.last_error;
+      errEl.textContent='⚠ '+msg;
+      errEl.style.display='block';
+    } else {
+      errEl.style.display='none';
+    }
+
     // Age
     document.getElementById('po-age').textContent=ageStr(d.last_read_at);
 
@@ -147,7 +158,7 @@ function fmtWh(wh){
 function testPoweropti(){
   fetch('/api/test/poweropti').then(r=>r.json()).then(function(d){
     document.getElementById('action-msg').textContent=
-      d.valid ? 'OK: '+d.watt.toFixed(1)+' W, Alter: '+d.age_s.toFixed(1)+'s' : 'Fehler: '+JSON.stringify(d);
+      d.valid ? 'OK: '+d.watt.toFixed(1)+' W' : 'Fehler: '+(d.error||d.last_error||JSON.stringify(d));
   });
 }
 function restartService(){

@@ -60,7 +60,7 @@ input:focus,select:focus{outline:none;border-color:#e94560}
     <label>API-Key / Seriennummer</label>
     <input type="text" name="poweropti_api_key" placeholder="abc123"
            value="{{.Cfg.PoweroptiAPIKey}}" required>
-    <p class="hint">Wird als HTTP-Basic-Auth-Passwort verwendet (Username = API-Key).</p>
+    <p class="hint">Wird als X-API-KEY-Header bei der Geräteabfrage verwendet.</p>
   </div>
 
   <div class="card">

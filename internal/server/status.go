@@ -93,6 +93,7 @@ type apiStatusResponse struct {
 	ConsumedWh         float64 `json:"consumed_wh"`
 	DeliveredWh        float64 `json:"delivered_wh"`
 	Errors             int     `json:"errors"`
+	LastError          string  `json:"last_error"`
 	UptimeSeconds      int64   `json:"uptime_s"`
 	LastReadAt         string  `json:"last_read_at"`          // RFC3339 or ""
 	PoweroptiTimestamp int64   `json:"poweropti_timestamp"`   // device unix epoch
@@ -111,6 +112,7 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 		resp.ConsumedWh = rd.ConsumedWh
 		resp.DeliveredWh = rd.DeliveredWh
 		resp.Errors = s.poller.ConsecutiveErrors()
+		resp.LastError = s.poller.LastError()
 		resp.PoweroptiTimestamp = rd.PoweroptiTimestamp
 		if !rd.At.IsZero() {
 			resp.LastReadAt = rd.At.UTC().Format(time.RFC3339)
@@ -154,20 +156,19 @@ func (s *Server) apiRestart(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiTestPoweropti(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
 	if s.poller == nil {
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "not configured"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"valid": false, "error": "not configured"})
 		return
 	}
-	rd := s.poller.Latest()
-	var ageS float64
-	if !rd.At.IsZero() {
-		ageS = time.Since(rd.At).Seconds()
+	rd, err := s.poller.FetchOnce()
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(map[string]any{"valid": false, "error": err.Error()})
+		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"valid":                rd.Valid,
-		"watt":                 rd.Watt,
-		"consumed_wh":          rd.ConsumedWh,
-		"delivered_wh":         rd.DeliveredWh,
-		"age_s":                ageS,
-		"poweropti_timestamp":  rd.PoweroptiTimestamp,
+		"valid":               true,
+		"watt":                rd.Watt,
+		"consumed_wh":         rd.ConsumedWh,
+		"delivered_wh":        rd.DeliveredWh,
+		"poweropti_timestamp": rd.PoweroptiTimestamp,
 	})
 }
