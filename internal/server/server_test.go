@@ -9,6 +9,7 @@ import (
 
 	"github.com/fedzzito/power-bridge/internal/config"
 	"github.com/fedzzito/power-bridge/internal/server"
+	"github.com/gorilla/websocket"
 )
 
 func newTestServer(t *testing.T) *server.Server {
@@ -232,5 +233,87 @@ func TestAPIStatusEndpoint(t *testing.T) {
 	}
 	if _, ok := resp["uptime_s"]; !ok {
 		t.Error("missing 'uptime_s' field")
+	}
+}
+
+func TestRPCWebSocketDispatch(t *testing.T) {
+	srv := newTestServer(t)
+	ts := httptest.NewServer(srv)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/rpc"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer conn.Close()
+
+	methods := []string{
+		"Shelly.GetDeviceInfo",
+		"Shelly.GetStatus",
+		"Shelly.GetConfig",
+		"Shelly.GetComponents",
+		"EM.GetStatus",
+		"Sys.GetStatus",
+		"Sys.GetConfig",
+	}
+
+	for i, method := range methods {
+		req := map[string]any{"id": i + 1, "src": "test_client", "method": method}
+		if err := conn.WriteJSON(req); err != nil {
+			t.Fatalf("write %s: %v", method, err)
+		}
+
+		var resp map[string]any
+		if err := conn.ReadJSON(&resp); err != nil {
+			t.Fatalf("read %s: %v", method, err)
+		}
+
+		if resp["error"] != nil {
+			t.Errorf("%s: got error %v", method, resp["error"])
+		}
+		if resp["result"] == nil {
+			t.Errorf("%s: missing 'result' field", method)
+		}
+		if resp["dst"] != "test_client" {
+			t.Errorf("%s: dst expected 'test_client', got %v", method, resp["dst"])
+		}
+		if id, _ := resp["id"].(float64); int(id) != i+1 {
+			t.Errorf("%s: id expected %d, got %v", method, i+1, resp["id"])
+		}
+	}
+}
+
+func TestRPCWebSocketUnknownMethod(t *testing.T) {
+	srv := newTestServer(t)
+	ts := httptest.NewServer(srv)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/rpc"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer conn.Close()
+
+	req := map[string]any{"id": 1, "src": "test_client", "method": "Unknown.Method"}
+	if err := conn.WriteJSON(req); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	var resp map[string]any
+	if err := conn.ReadJSON(&resp); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	if resp["error"] == nil {
+		t.Error("expected error for unknown method, got none")
+	}
+	errObj, ok := resp["error"].(map[string]any)
+	if !ok {
+		t.Fatal("error field is not an object")
+	}
+	if errObj["code"] != float64(-105) {
+		t.Errorf("error code: expected -105, got %v", errObj["code"])
 	}
 }
