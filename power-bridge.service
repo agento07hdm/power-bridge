@@ -1,8 +1,11 @@
 [Unit]
 Description=power-bridge – powerfox poweropti → virtual Shelly Pro 3EM
 Documentation=https://github.com/fedzzito/power-bridge
-After=network-online.target
-Wants=network-online.target
+# Start only after the boot-time OTA update check has completed.
+# Wants= (not Requires=) so that power-bridge starts even if the update
+# service is not installed or fails unexpectedly.
+After=network-online.target power-bridge-update.service
+Wants=network-online.target power-bridge-update.service
 
 [Service]
 Type=simple
