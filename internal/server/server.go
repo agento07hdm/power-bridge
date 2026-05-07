@@ -19,6 +19,10 @@ import (
 //go:embed templates/*
 var templateFS embed.FS
 
+// Version is the release version string, set via -ldflags "-X github.com/fedzzito/power-bridge/internal/server.Version=vX.Y.Z"
+// from the main package. Falls back to "dev" if not set.
+var Version = "dev"
+
 // Server is the unified HTTP server.
 type Server struct {
 	cfg        *config.Config
@@ -89,6 +93,9 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/rpc/EM.GetStatus", s.shellyEMGetStatus)
 	mux.HandleFunc("/rpc/Sys.GetStatus", s.sysGetStatus)
 	mux.HandleFunc("/rpc/Sys.GetConfig", s.sysGetConfig)
+
+	// Shelly Gen-2 RPC over WebSocket (used by Shelly apps and some home automation systems)
+	mux.HandleFunc("/rpc", s.rpcWebSocket)
 
 	// Legacy identification endpoint – equivalent to Shelly.GetDeviceInfo.
 	// Many Shelly clients (including the official Shelly app) probe /shelly

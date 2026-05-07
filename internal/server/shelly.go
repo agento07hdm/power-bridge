@@ -32,9 +32,8 @@ type deviceInfoResponse struct {
 	AuthDomain *string `json:"auth_domain"`
 }
 
-func (s *Server) shellyGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
-	resp := deviceInfoResponse{
+func (s *Server) buildDeviceInfo() deviceInfoResponse {
+	return deviceInfoResponse{
 		Name:       s.cfg.Hostname,
 		ID:         shellyID(s.cfg.ShellyMAC),
 		MAC:        macNoColons(s.cfg.ShellyMAC),
@@ -46,7 +45,11 @@ func (s *Server) shellyGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
 		AuthEn:     false,
 		AuthDomain: nil,
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) shellyGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildDeviceInfo())
 }
 
 // --------------------------------------------------------------------------
@@ -200,9 +203,8 @@ type wifiStatus struct {
 	Status string `json:"status"`
 }
 
-func (s *Server) shellyGetStatus(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
-	resp := shellyStatusResponse{
+func (s *Server) buildShellyStatus() shellyStatusResponse {
+	return shellyStatusResponse{
 		EM0: s.buildEMStatus(),
 		Sys: sysStatus{
 			Uptime:   uptimeSeconds(),
@@ -216,7 +218,11 @@ func (s *Server) shellyGetStatus(w http.ResponseWriter, r *http.Request) {
 			Status: "got ip",
 		},
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) shellyGetStatus(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildShellyStatus())
 }
 
 // --------------------------------------------------------------------------
@@ -247,9 +253,8 @@ type sntpConfig struct {
 	Server string `json:"server"`
 }
 
-func (s *Server) shellyGetConfig(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
-	resp := shellyConfigResponse{
+func (s *Server) buildShellyConfig() shellyConfigResponse {
+	return shellyConfigResponse{
 		EM0: emConfig{ID: 0},
 		Sys: sysConfig{
 			Device: sysDevConfig{
@@ -260,7 +265,11 @@ func (s *Server) shellyGetConfig(w http.ResponseWriter, r *http.Request) {
 			Sntp: sntpConfig{Server: "pool.ntp.org"},
 		},
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) shellyGetConfig(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildShellyConfig())
 }
 
 // --------------------------------------------------------------------------
@@ -278,10 +287,9 @@ type component struct {
 	Config any    `json:"config"`
 }
 
-func (s *Server) shellyGetComponents(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
+func (s *Server) buildShellyComponents() componentsResponse {
 	em := s.buildEMStatus()
-	resp := componentsResponse{
+	return componentsResponse{
 		Components: []component{
 			{
 				Key:    "em:0",
@@ -291,7 +299,11 @@ func (s *Server) shellyGetComponents(w http.ResponseWriter, r *http.Request) {
 		},
 		Total: 1,
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) shellyGetComponents(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildShellyComponents())
 }
 
 // --------------------------------------------------------------------------
@@ -316,10 +328,9 @@ type sysGetStatusResponse struct {
 	ResetReason      int            `json:"reset_reason"`
 }
 
-func (s *Server) sysGetStatus(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
+func (s *Server) buildSysStatus() sysGetStatusResponse {
 	now := time.Now()
-	resp := sysGetStatusResponse{
+	return sysGetStatusResponse{
 		MAC:              macNoColons(s.cfg.ShellyMAC),
 		RestartRequired:  false,
 		Time:             now.Format("15:04:05"),
@@ -336,7 +347,11 @@ func (s *Server) sysGetStatus(w http.ResponseWriter, r *http.Request) {
 		AvailableUpdates: map[string]any{},
 		ResetReason:      1,
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) sysGetStatus(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildSysStatus())
 }
 
 // --------------------------------------------------------------------------
@@ -379,9 +394,8 @@ type sysGetConfigRPCUDP struct {
 	ListenPort *int    `json:"listen_port"`
 }
 
-func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
-	jsonHeader(w)
-	resp := sysGetConfigResponse{
+func (s *Server) buildSysConfig() sysGetConfigResponse {
+	return sysGetConfigResponse{
 		Device: sysGetConfigDevice{
 			Name:    s.cfg.Hostname,
 			MAC:     macNoColons(s.cfg.ShellyMAC),
@@ -408,7 +422,11 @@ func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
 		Sntp:   sntpConfig{Server: "time.google.com"},
 		CfgRev: 1,
 	}
-	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildSysConfig())
 }
 
 // --------------------------------------------------------------------------

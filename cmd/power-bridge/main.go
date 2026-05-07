@@ -34,6 +34,8 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Printf("power-bridge %s starting, config=%s", version, *configFile)
 
+	server.Version = version
+
 	cfg, err := config.Load(*configFile)
 	if err != nil {
 		log.Fatalf("config: %v", err)

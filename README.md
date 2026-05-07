@@ -264,6 +264,37 @@ Alternativ werden `currentwatt`/`mw` und `obis1_8_0`/`wh_in` etc. im Legacy-Form
 }
 ```
 
+### WebSocket RPC (`WS /rpc`)
+
+Shelly Gen-2-kompatibles RPC-Protokoll über WebSocket (wird von der Shelly-App und einigen Home-Automation-Systemen wie Home Assistant genutzt).
+
+**Request-Format:**
+```json
+{"id": 1, "src": "user_1", "method": "Shelly.GetDeviceInfo", "params": {}}
+```
+
+**Response-Format:**
+```json
+{"id": 1, "src": "shellypro3em-aabbccddeeff", "dst": "user_1", "result": {...}}
+```
+
+**Fehler (unbekannte Methode):**
+```json
+{"id": 1, "src": "shellypro3em-aabbccddeeff", "dst": "user_1", "error": {"code": -105, "message": "method not found: Unknown.Method"}}
+```
+
+**Unterstützte Methoden über WebSocket:**
+
+| Methode | Beschreibung |
+|---|---|
+| `Shelly.GetDeviceInfo` | Geräteinformationen |
+| `Shelly.GetStatus` | Gesamtstatus (EM, Sys, WiFi) |
+| `Shelly.GetConfig` | Gerätekonfiguration |
+| `Shelly.GetComponents` | Komponenten-Liste |
+| `EM.GetStatus` | Energiezähler-Status |
+| `Sys.GetStatus` | System-Status |
+| `Sys.GetConfig` | System-Konfiguration |
+
 ---
 
 ## Konfiguration (`/etc/power-bridge/config.yaml`)
@@ -407,7 +438,7 @@ curl "http://localhost:8080/rpc/Shelly.GetDeviceInfo"
 
 ```bash
 GOOS=linux GOARCH=arm GOARM=6 CGO_ENABLED=0 \
-    go build -ldflags="-s -w -X main.version=dev" -trimpath \
+    go build -ldflags="-s -w -X main.version=dev -X github.com/fedzzito/power-bridge/internal/server.Version=dev" -trimpath \
     -o power-bridge-dev-linux-armv6 ./cmd/power-bridge
 ```
 

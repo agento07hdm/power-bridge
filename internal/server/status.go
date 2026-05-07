@@ -25,6 +25,8 @@ type statusPageData struct {
 	LastReadAt string
 	// PoweroptiAge is a human-readable age string (e.g. "3s ago").
 	PoweroptiAge string
+	// Version is the power-bridge release version (e.g. "v0.1.3").
+	Version string
 }
 
 func (s *Server) statusPage(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +43,7 @@ func (s *Server) buildStatusPageData(r *http.Request) statusPageData {
 		PoweroptiIP: s.cfg.PoweroptiIP,
 		Logs:        s.logBuffer.lines(),
 		SetupDone:   r.URL.Query().Get("setup") == "done",
+		Version:     Version,
 	}
 	if s.poller != nil {
 		rd := s.poller.Latest()

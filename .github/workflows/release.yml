@@ -43,7 +43,7 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           go build \
-            -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -ldflags="-s -w -X main.version=${{ github.ref_name }} -X github.com/fedzzito/power-bridge/internal/server.Version=${{ github.ref_name }}" \
             -trimpath \
             -o power-bridge-${{ github.ref_name }}-linux-armv6 \
             ./cmd/power-bridge

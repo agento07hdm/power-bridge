@@ -47,6 +47,10 @@ h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;mar
     <span class="value">{{.Hostname}}.local</span>
   </div>
   <div class="row">
+    <span class="label">Version</span>
+    <span class="value" style="font-size:.85rem;color:#6b7280">{{.Version}}</span>
+  </div>
+  <div class="row">
     <span class="label">Poweropti</span>
     <span class="value {{if .PoweroptiOK}}ok{{else}}err{{end}}" id="po-status">
       {{if .PoweroptiOK}}✓ Erreichbar{{else}}✗ Fehler{{end}}
