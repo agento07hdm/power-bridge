@@ -307,8 +307,7 @@ for f in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
 done
 if [ -n "$CMDLINE_FILE" ]; then
     if ! grep -q "init=/usr/lib/raspi-config/init_resize.sh" "$CMDLINE_FILE" 2>/dev/null; then
-        sed -i 's|$| init=/usr/lib/raspi-config/init_resize.sh|' "$CMDLINE_FILE"
-        ok "First-boot resize hook added to $CMDLINE_FILE"
+        sed -i '1s|$| init=/usr/lib/raspi-config/init_resize.sh|' "$CMDLINE_FILE"        ok "First-boot resize hook added to $CMDLINE_FILE"
     else
         ok "First-boot resize hook already present"
     fi
