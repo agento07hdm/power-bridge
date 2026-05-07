@@ -38,6 +38,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	config.ApplyAutodetect(cfg)
 
 	if *listenAddr != "" {
 		cfg.ListenAddr = *listenAddr

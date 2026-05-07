@@ -5,24 +5,30 @@
   Avahi / mDNS service registration for power-bridge.
   Install to: /etc/avahi/services/power-bridge.service
   After install: systemctl restart avahi-daemon
+
+  NOTE: power-bridge rewrites this file automatically when the first-run setup
+  is saved, inserting the real device ID and MAC.  The values below are only
+  used if the file is installed manually before setup has run.
 -->
 
 <service-group>
-  <name replace-wildcards="yes">power-bridge on %h</name>
+  <name replace-wildcards="yes">shellypro3em-%h</name>
 
-  <!-- HTTP service so browsers can find the status page -->
+  <!-- HTTP service so browsers/apps can reach the status page -->
   <service>
     <type>_http._tcp</type>
     <port>80</port>
     <txt-record>path=/</txt-record>
   </service>
 
-  <!-- Shelly discovery record (used by Marstek, Noah, Hoymiles auto-discovery) -->
+  <!-- Shelly Gen2 discovery record (used by Shelly app, Marstek, Noah, Hoymiles) -->
   <service>
     <type>_shelly._tcp</type>
     <port>80</port>
     <txt-record>gen=2</txt-record>
     <txt-record>app=Pro3EM</txt-record>
     <txt-record>ver=2.2.1</txt-record>
+    <txt-record>id=shellypro3em-aabbccddeeff</txt-record>
+    <txt-record>mac=AABBCCDDEEFF</txt-record>
   </service>
 </service-group>

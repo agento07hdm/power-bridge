@@ -88,6 +88,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/rpc/Shelly.GetComponents", s.shellyGetComponents)
 	mux.HandleFunc("/rpc/EM.GetStatus", s.shellyEMGetStatus)
 
+	// Legacy identification endpoint – equivalent to Shelly.GetDeviceInfo.
+	// Many Shelly clients (including the official Shelly app) probe /shelly
+	// first to detect whether a host is a Shelly device.
+	mux.HandleFunc("/shelly", s.shellyGetDeviceInfo)
+
 	// Setup UI
 	mux.HandleFunc("/setup", s.setupPage)
 	mux.HandleFunc("/setup/save", s.setupSave)

@@ -67,9 +67,10 @@ func (s *Server) setupSave(w http.ResponseWriter, r *http.Request) {
 
 	s.logf("Setup completed. SSID=%s, Poweropti=%s", s.cfg.WIFISSID, s.cfg.PoweroptiIP)
 
-	// Write wpa_supplicant config and restart networking (best-effort).
+	// Write avahi mDNS service file and wifi config; restart networking (best-effort).
 	go func() {
 		time.Sleep(500 * time.Millisecond)
+		writeAvahiService(s.cfg)
 		applyWifiConfig(s.cfg.WIFISSID, s.cfg.WIFIPassword)
 	}()
 
@@ -105,6 +106,58 @@ func writeFileRoot(path, content string) error {
 	cmd := exec.Command("tee", path)
 	cmd.Stdin = strings.NewReader(content)
 	return cmd.Run()
+}
+
+// writeAvahiService writes a device-specific Avahi mDNS service file and
+// restarts avahi-daemon so the Pi is immediately discoverable as a Shelly
+// Pro 3EM by the Shelly app and compatible battery systems.
+//
+// The file is installed to /etc/avahi/services/power-bridge.service.
+// Errors are logged but never fatal – the service still works without mDNS.
+func writeAvahiService(cfg *config.Config) {
+	const avahiPath = "/etc/avahi/services/power-bridge.service"
+
+	id := shellyID(cfg.ShellyMAC)
+	mac := macNoColons(cfg.ShellyMAC)
+
+	content := fmt.Sprintf(`<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name>%s</name>
+
+  <!-- HTTP service so browsers/apps can reach the status page -->
+  <service>
+    <type>_http._tcp</type>
+    <port>80</port>
+    <txt-record>path=/</txt-record>
+  </service>
+
+  <!-- Shelly Gen2 discovery record -->
+  <service>
+    <type>_shelly._tcp</type>
+    <port>80</port>
+    <txt-record>gen=2</txt-record>
+    <txt-record>app=Pro3EM</txt-record>
+    <txt-record>ver=2.2.1</txt-record>
+    <txt-record>id=%s</txt-record>
+    <txt-record>mac=%s</txt-record>
+  </service>
+</service-group>
+`, id, id, mac)
+
+	if err := writeFileRoot(avahiPath, content); err != nil {
+		log.Printf("failed to write avahi service to %s: %v", avahiPath, err)
+		return
+	}
+	if err := exec.Command("systemctl", "restart", "avahi-daemon").Run(); err != nil {
+		log.Printf("avahi-daemon restart failed: %v", err)
+	}
+}
+
+// macNoColons returns the MAC address in uppercase with colons removed
+// (e.g. "B8:27:EB:EE:3B:0B" → "B827EBEE3B0B").
+func macNoColons(mac string) string {
+	return strings.ToUpper(strings.ReplaceAll(mac, ":", ""))
 }
 
 // --------------------------------------------------------------------------

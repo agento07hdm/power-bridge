@@ -154,6 +154,51 @@ func TestSetupPageRendered(t *testing.T) {
 	}
 }
 
+func TestShellyLegacyEndpoint(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/shelly", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	// Must contain same identification fields as Shelly.GetDeviceInfo
+	checks := map[string]any{
+		"app":   "Pro3EM",
+		"model": "SPEM-003CEBEU",
+		"mac":   "AA:BB:CC:DD:EE:FF",
+	}
+	for k, want := range checks {
+		got, ok := resp[k]
+		if !ok {
+			t.Errorf("missing field %q", k)
+			continue
+		}
+		if got != want {
+			t.Errorf("field %q: got %v, want %v", k, got, want)
+		}
+	}
+
+	if gen, ok := resp["gen"].(float64); !ok || gen != 2 {
+		t.Errorf("gen: expected 2, got %v", resp["gen"])
+	}
+
+	// ID must be derived from the MAC
+	wantID := "shellypro3em-aabbccddeeff"
+	if id, ok := resp["id"].(string); !ok || id != wantID {
+		t.Errorf("id: expected %q, got %v", wantID, resp["id"])
+	}
+}
+
+
 func TestCORSHeaders(t *testing.T) {
 	srv := newTestServer(t)
 
