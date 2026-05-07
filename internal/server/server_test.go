@@ -39,7 +39,7 @@ func TestShellyGetDeviceInfo(t *testing.T) {
 	checks := map[string]any{
 		"app":   "Pro3EM",
 		"model": "SPEM-003CEBEU",
-		"mac":   "AA:BB:CC:DD:EE:FF",
+		"mac":   "AABBCCDDEEFF",
 	}
 	for k, want := range checks {
 		got, ok := resp[k]
@@ -174,7 +174,7 @@ func TestShellyLegacyEndpoint(t *testing.T) {
 	checks := map[string]any{
 		"app":   "Pro3EM",
 		"model": "SPEM-003CEBEU",
-		"mac":   "AA:BB:CC:DD:EE:FF",
+		"mac":   "AABBCCDDEEFF",
 	}
 	for k, want := range checks {
 		got, ok := resp[k]
