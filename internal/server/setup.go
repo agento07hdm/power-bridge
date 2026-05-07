@@ -115,8 +115,10 @@ func writeFileRoot(path, content string) error {
 // The file is installed to /etc/avahi/services/power-bridge.service.
 // Errors are logged but never fatal – the service still works without mDNS.
 func writeAvahiService(cfg *config.Config) {
+	const avahiPath = "/etc/avahi/services/power-bridge.service"
+
 	id := shellyID(cfg.ShellyMAC)
-	mac := strings.ToUpper(strings.ReplaceAll(cfg.ShellyMAC, ":", ""))
+	mac := macNoColons(cfg.ShellyMAC)
 
 	content := fmt.Sprintf(`<?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
@@ -143,13 +145,19 @@ func writeAvahiService(cfg *config.Config) {
 </service-group>
 `, id, id, mac)
 
-	if err := writeFileRoot("/etc/avahi/services/power-bridge.service", content); err != nil {
-		log.Printf("avahi service write failed: %v", err)
+	if err := writeFileRoot(avahiPath, content); err != nil {
+		log.Printf("failed to write avahi service to %s: %v", avahiPath, err)
 		return
 	}
 	if err := exec.Command("systemctl", "restart", "avahi-daemon").Run(); err != nil {
 		log.Printf("avahi-daemon restart failed: %v", err)
 	}
+}
+
+// macNoColons returns the MAC address in uppercase with colons removed
+// (e.g. "B8:27:EB:EE:3B:0B" → "B827EBEE3B0B").
+func macNoColons(mac string) string {
+	return strings.ToUpper(strings.ReplaceAll(mac, ":", ""))
 }
 
 // --------------------------------------------------------------------------

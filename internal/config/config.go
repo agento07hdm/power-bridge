@@ -84,6 +84,9 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// macAddrLen is the byte length of a standard 6-octet IEEE 802 MAC address.
+const macAddrLen = 6
+
 // ApplyAutodetect fills in placeholder values in cfg using real hardware
 // information. It replaces the generic dummy MAC "AA:BB:CC:DD:EE:FF" (or an
 // empty MAC) with the actual hardware MAC address of the first available
@@ -115,7 +118,7 @@ func ApplyAutodetect(cfg *Config) {
 func detectRealMAC() string {
 	for _, name := range []string{"wlan0", "eth0"} {
 		iface, err := net.InterfaceByName(name)
-		if err == nil && len(iface.HardwareAddr) == 6 {
+		if err == nil && len(iface.HardwareAddr) == macAddrLen {
 			return strings.ToUpper(iface.HardwareAddr.String())
 		}
 	}
@@ -124,7 +127,7 @@ func detectRealMAC() string {
 		return ""
 	}
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagLoopback != 0 || len(iface.HardwareAddr) != 6 {
+		if iface.Flags&net.FlagLoopback != 0 || len(iface.HardwareAddr) != macAddrLen {
 			continue
 		}
 		return strings.ToUpper(iface.HardwareAddr.String())
