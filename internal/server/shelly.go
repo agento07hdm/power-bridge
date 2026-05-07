@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/fedzzito/power-bridge/internal/config"
 )
@@ -36,7 +37,7 @@ func (s *Server) shellyGetDeviceInfo(w http.ResponseWriter, r *http.Request) {
 	resp := deviceInfoResponse{
 		Name:       s.cfg.Hostname,
 		ID:         shellyID(s.cfg.ShellyMAC),
-		MAC:        strings.ToUpper(s.cfg.ShellyMAC),
+		MAC:        macNoColons(s.cfg.ShellyMAC),
 		Model:      "SPEM-003CEBEU",
 		Gen:        2,
 		FwID:       "20231219-133953/v2.2.1-g21b75e0",
@@ -253,7 +254,7 @@ func (s *Server) shellyGetConfig(w http.ResponseWriter, r *http.Request) {
 		Sys: sysConfig{
 			Device: sysDevConfig{
 				Name:     s.cfg.Hostname,
-				MAC:      strings.ToUpper(s.cfg.ShellyMAC),
+				MAC:      macNoColons(s.cfg.ShellyMAC),
 				FwUpdate: false,
 			},
 			Sntp: sntpConfig{Server: "pool.ntp.org"},
@@ -289,6 +290,123 @@ func (s *Server) shellyGetComponents(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Total: 1,
+	}
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// --------------------------------------------------------------------------
+// Sys.GetStatus
+// --------------------------------------------------------------------------
+
+type sysGetStatusResponse struct {
+	MAC              string         `json:"mac"`
+	RestartRequired  bool           `json:"restart_required"`
+	Time             string         `json:"time"`
+	Unixtime         int64          `json:"unixtime"`
+	Uptime           int64          `json:"uptime"`
+	RAMSize          int            `json:"ram_size"`
+	RAMFree          int            `json:"ram_free"`
+	FSSize           int            `json:"fs_size"`
+	FSFree           int            `json:"fs_free"`
+	CfgRev           int            `json:"cfg_rev"`
+	KvsRev           int            `json:"kvs_rev"`
+	ScheduleRev      int            `json:"schedule_rev"`
+	WebhookRev       int            `json:"webhook_rev"`
+	AvailableUpdates map[string]any `json:"available_updates"`
+	ResetReason      int            `json:"reset_reason"`
+}
+
+func (s *Server) sysGetStatus(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	now := time.Now()
+	resp := sysGetStatusResponse{
+		MAC:              macNoColons(s.cfg.ShellyMAC),
+		RestartRequired:  false,
+		Time:             now.Format("15:04:05"),
+		Unixtime:         now.Unix(),
+		Uptime:           uptimeSeconds(),
+		RAMSize:          64 * 1024 * 1024,
+		RAMFree:          48 * 1024 * 1024,
+		FSSize:           1048576,
+		FSFree:           524288,
+		CfgRev:           1,
+		KvsRev:           0,
+		ScheduleRev:      0,
+		WebhookRev:       0,
+		AvailableUpdates: map[string]any{},
+		ResetReason:      1,
+	}
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// --------------------------------------------------------------------------
+// Sys.GetConfig
+// --------------------------------------------------------------------------
+
+type sysGetConfigResponse struct {
+	Device   sysGetConfigDevice   `json:"device"`
+	Location sysGetConfigLocation `json:"location"`
+	Debug    sysGetConfigDebug    `json:"debug"`
+	UIData   map[string]any       `json:"ui_data"`
+	RPCUDP   sysGetConfigRPCUDP   `json:"rpc_udp"`
+	Sntp     sntpConfig           `json:"sntp"`
+	CfgRev   int                  `json:"cfg_rev"`
+}
+
+type sysGetConfigDevice struct {
+	Name    string `json:"name"`
+	MAC     string `json:"mac"`
+	FwID    string `json:"fw_id"`
+	Profile string `json:"profile"`
+}
+
+type sysGetConfigLocation struct {
+	TZ  string  `json:"tz"`
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+type sysGetConfigDebug struct {
+	Level     int            `json:"level"`
+	FileLevel *int           `json:"file_level"`
+	MQTT      map[string]any `json:"mqtt"`
+	Websocket map[string]any `json:"websocket"`
+	UDP       map[string]any `json:"udp"`
+}
+
+type sysGetConfigRPCUDP struct {
+	DstAddr    *string `json:"dst_addr"`
+	ListenPort *int    `json:"listen_port"`
+}
+
+func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	resp := sysGetConfigResponse{
+		Device: sysGetConfigDevice{
+			Name:    s.cfg.Hostname,
+			MAC:     macNoColons(s.cfg.ShellyMAC),
+			FwID:    "20231219-133953/v2.2.1-g21b75e0",
+			Profile: "triphase",
+		},
+		Location: sysGetConfigLocation{
+			TZ:  "Europe/Berlin",
+			Lat: 0,
+			Lon: 0,
+		},
+		Debug: sysGetConfigDebug{
+			Level:     2,
+			FileLevel: nil,
+			MQTT:      map[string]any{"enable": false},
+			Websocket: map[string]any{"enable": false},
+			UDP:       map[string]any{"addr": nil},
+		},
+		UIData: map[string]any{},
+		RPCUDP: sysGetConfigRPCUDP{
+			DstAddr:    nil,
+			ListenPort: nil,
+		},
+		Sntp:   sntpConfig{Server: "time.google.com"},
+		CfgRev: 1,
 	}
 	_ = json.NewEncoder(w).Encode(resp)
 }
