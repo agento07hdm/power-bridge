@@ -117,7 +117,7 @@ cat > "$AVAHI_SVC_DIR/power-bridge.service" << 'EOF'
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
 <service-group>
-  <name replace-wildcards="yes">power-bridge on %h</name>
+  <name replace-wildcards="yes">shellypro3em-%h</name>
   <service>
     <type>_http._tcp</type>
     <port>80</port>
@@ -129,6 +129,8 @@ cat > "$AVAHI_SVC_DIR/power-bridge.service" << 'EOF'
     <txt-record>gen=2</txt-record>
     <txt-record>app=Pro3EM</txt-record>
     <txt-record>ver=2.2.1</txt-record>
+    <txt-record>id=shellypro3em-aabbccddeeff</txt-record>
+    <txt-record>mac=AABBCCDDEEFF</txt-record>
   </service>
 </service-group>
 EOF

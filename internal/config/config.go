@@ -2,8 +2,10 @@
 package config
 
 import (
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -80,6 +82,54 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// ApplyAutodetect fills in placeholder values in cfg using real hardware
+// information. It replaces the generic dummy MAC "AA:BB:CC:DD:EE:FF" (or an
+// empty MAC) with the actual hardware MAC address of the first available
+// non-loopback network interface, and derives the Hostname from that MAC when
+// the hostname is still the generic default.
+//
+// Call this after Load() so that a freshly-installed or factory-reset device
+// automatically presents a plausible Shelly identity without requiring manual
+// configuration.
+func ApplyAutodetect(cfg *Config) {
+	const placeholderMAC = "AA:BB:CC:DD:EE:FF"
+	const defaultHostname = "shellypro3em-poweropti"
+
+	if cfg.ShellyMAC == "" || cfg.ShellyMAC == placeholderMAC {
+		if mac := detectRealMAC(); mac != "" {
+			cfg.ShellyMAC = mac
+			// Derive hostname from MAC when it is still the generic default.
+			if cfg.Hostname == "" || cfg.Hostname == defaultHostname {
+				clean := strings.ReplaceAll(strings.ToLower(mac), ":", "")
+				cfg.Hostname = "shellypro3em-" + clean
+			}
+		}
+	}
+}
+
+// detectRealMAC returns the uppercase colon-separated MAC address of the first
+// suitable network interface.  It prefers wlan0 and eth0, then falls back to
+// any non-loopback interface that has a 6-byte hardware address.
+func detectRealMAC() string {
+	for _, name := range []string{"wlan0", "eth0"} {
+		iface, err := net.InterfaceByName(name)
+		if err == nil && len(iface.HardwareAddr) == 6 {
+			return strings.ToUpper(iface.HardwareAddr.String())
+		}
+	}
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 || len(iface.HardwareAddr) != 6 {
+			continue
+		}
+		return strings.ToUpper(iface.HardwareAddr.String())
+	}
+	return ""
 }
 
 // Save writes the config as YAML to path, creating parent directories as needed.
