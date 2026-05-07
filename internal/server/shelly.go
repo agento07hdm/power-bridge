@@ -322,7 +322,7 @@ func (s *Server) sysGetStatus(w http.ResponseWriter, r *http.Request) {
 	resp := sysGetStatusResponse{
 		MAC:              macNoColons(s.cfg.ShellyMAC),
 		RestartRequired:  false,
-		Time:             now.Format("15:04"),
+		Time:             now.Format("15:04:05"),
 		Unixtime:         now.Unix(),
 		Uptime:           uptimeSeconds(),
 		RAMSize:          64 * 1024 * 1024,

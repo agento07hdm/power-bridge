@@ -141,7 +141,7 @@ function scanWifi() {
 
 function togglePassword() {
   var input = document.getElementById('wifi_password');
-  var btn = input.nextElementSibling;
+  var btn = document.querySelector('.pw-toggle');
   if (input.type === 'password') {
     input.type = 'text';
     btn.textContent = '🙈';
@@ -154,12 +154,15 @@ function togglePassword() {
 }
 
 function checkSameNetwork() {
-  // If the user can reach this page, they are on the same network as the bridge.
-  // Show the optional note and remove the required attribute from WiFi fields.
+  // Only show the optional note when the device is already configured and
+  // connected to WiFi (i.e. not in AP/first-run mode). In AP mode the user
+  // must enter WiFi credentials, so the fields stay required.
+  {{if .Cfg.Configured}}
   var note = document.getElementById('wifi-optional-note');
   note.style.display = 'block';
   document.getElementById('wifi_ssid').removeAttribute('required');
   document.getElementById('wifi_password').removeAttribute('required');
+  {{end}}
 }
 </script>
 </body>
