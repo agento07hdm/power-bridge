@@ -81,22 +81,95 @@ Das Skript:
 
 ---
 
-## Image erstellen (für Serienproduktion)
+## Image erstellen (für Serienproduktion / Weitergabe)
+
+### Empfohlener Workflow
 
 ```bash
-# Auf dem Pi – vor dem Ziehen des Images:
+# 1. Auf dem Pi – System bereinigen und Image vorbereiten:
 sudo bash /usr/local/share/power-bridge/prepare-image.sh
+
+# 2. Pi herunterfahren:
 sudo shutdown -h now
-# SD-Karte am PC mit dd oder rpi-imager lesen/klonen
+
+# 3. SD-Karte am PC mit USBImager auslesen:
+#    https://bztsrc.gitlab.io/usbimager/
+#    → Image-Datei erstellen (z.B. power-bridge.img)
+
+# 4. Optional – Image mit PiShrink verkleinern:
+sudo pishrink.sh -za power-bridge.img
+#    https://github.com/Drewsif/PiShrink
 ```
 
-Das Skript `prepare-image.sh`:
-- Stoppt power-bridge
+Das Skript `prepare-image.sh` führt folgendes aus:
+- Stoppt power-bridge und den Update-Service
+- Setzt die Konfiguration auf unkonfigurierte Defaults zurück (`configured: false`)
 - Löscht SSH-Host-Keys (werden beim nächsten Boot neu generiert)
 - Löscht Machine-ID
+- Bereinigt apt/pip/npm-Cache
 - Bereinigt Log-Dateien und DHCP-Leases
-- Setzt die Konfiguration auf unkonfigurierte Defaults zurück (`configured: false`)
-- Löscht die Bash-History
+- Stellt sicher, dass die Partition beim ersten Boot automatisch vergrößert wird
+- Füllt freien Speicher mit Nullbytes (bessere Kompression des .img-Files)
+
+---
+
+## Automatische OTA-Updates
+
+power-bridge überprüft **bei jedem Boot automatisch**, ob ein neueres GitHub Release verfügbar ist.
+
+### Verhalten beim Boot
+
+```
+Boot
+ └─ power-bridge-update.service (oneshot)
+     ├─ Kein Internet → sofortiger Weiterstart mit aktueller Version
+     ├─ Aktuelle Version → sofortiger Weiterstart
+     └─ Neues Release gefunden
+         ├─ Binary herunterladen
+         ├─ Backup der alten Binary erstellen
+         ├─ Neue Binary atomar installieren (power-failure-sicher)
+         └─ VERSION-Datei aktualisieren
+ └─ power-bridge.service startet (immer nach dem Update-Service)
+```
+
+### Update-Kanal wechseln
+
+```bash
+# Stable (Standard):
+echo "stable" | sudo tee /etc/power-bridge/update-channel
+
+# Beta (Pre-Releases):
+echo "beta" | sudo tee /etc/power-bridge/update-channel
+```
+
+### Rollback nach fehlerhaftem Update
+
+```bash
+sudo bash /usr/local/share/power-bridge/rollback.sh
+```
+
+Das Rollback-Skript:
+- Stoppt power-bridge
+- Stellt die vorherige Binary aus dem Backup wieder her
+- Aktualisiert die VERSION-Datei
+- Startet power-bridge neu
+
+### Update-Logs ansehen
+
+```bash
+# Update-Service-Logs:
+journalctl -u power-bridge-update
+
+# Letzter Boot:
+journalctl -u power-bridge-update -b
+```
+
+### Manuelles Update auslösen
+
+```bash
+sudo bash /usr/local/share/power-bridge/update.sh
+sudo systemctl restart power-bridge
+```
 
 ---
 
@@ -228,15 +301,20 @@ Avahi-Service-Datei: `avahi/power-bridge.service` wird automatisch nach
 ```bash
 # Status prüfen
 systemctl status power-bridge
+systemctl status power-bridge-update
 
 # Logs ansehen
 journalctl -u power-bridge -f
+journalctl -u power-bridge-update -b   # Update-Logs letzter Boot
 
 # Neustart
 systemctl restart power-bridge
 
 # Nach Config-Änderung
 systemctl restart power-bridge
+
+# Rollback auf vorherige Version
+sudo bash /usr/local/share/power-bridge/rollback.sh
 ```
 
 ---
