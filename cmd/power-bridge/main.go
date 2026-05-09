@@ -71,6 +71,19 @@ func main() {
 		}
 	}()
 
+	// Start additional listeners for target systems that probe alternate ports
+	// (e.g. Marstek / Hoymiles may probe port 1010 or 2220).
+	for _, port := range cfg.ExtraPorts {
+		port := port // capture loop variable
+		go func() {
+			addr := fmt.Sprintf(":%d", port)
+			log.Printf("also listening on %s", addr)
+			if err := srv.ListenOnPort(addr); err != nil {
+				log.Printf("extra port %s: %v", addr, err)
+			}
+		}()
+	}
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

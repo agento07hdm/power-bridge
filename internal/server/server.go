@@ -76,6 +76,20 @@ func (s *Server) Listen(addr string) error {
 	return s.httpSrv.ListenAndServe()
 }
 
+// ListenOnPort starts an additional HTTP listener on addr using the same
+// request handler as the primary server. It blocks until the listener fails.
+// Intended to be called in a separate goroutine.
+func (s *Server) ListenOnPort(addr string) error {
+	extra := &http.Server{
+		Addr:         addr,
+		Handler:      s.mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	return extra.ListenAndServe()
+}
+
 // Shutdown gracefully stops the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) {
 	if err := s.httpSrv.Shutdown(ctx); err != nil {
@@ -106,6 +120,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/setup", s.setupPage)
 	mux.HandleFunc("/setup/save", s.setupSave)
 	mux.HandleFunc("/setup/scan", s.setupScanWifi)
+	mux.HandleFunc("/setup/scan-poweropti", s.setupScanPoweropti)
 
 	// Status & internal API
 	mux.HandleFunc("/api/status", s.apiStatus)

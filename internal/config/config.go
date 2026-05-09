@@ -53,6 +53,12 @@ type Config struct {
 
 	// Set to true after the first-run setup is completed.
 	Configured bool `yaml:"configured"`
+
+	// ExtraPorts lists additional TCP ports the HTTP server will also listen on.
+	// Many battery systems (Marstek, Hoymiles) are hardcoded to probe port 1010
+	// or 2220 in addition to the standard port 80. Power-bridge binds all listed
+	// ports so those systems can connect without manual reconfiguration.
+	ExtraPorts []int `yaml:"extra_ports"`
 }
 
 // Defaults returns a Config pre-filled with safe default values.
@@ -65,6 +71,7 @@ func Defaults() *Config {
 		StaleTimeoutS: 30,
 		ShellyMAC:     "AA:BB:CC:DD:EE:FF",
 		ListenAddr:    ":80",
+		ExtraPorts:    []int{1010, 2220},
 	}
 }
 
