@@ -105,6 +105,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/rpc/Shelly.GetConfig", s.shellyGetConfig)
 	mux.HandleFunc("/rpc/Shelly.GetComponents", s.shellyGetComponents)
 	mux.HandleFunc("/rpc/EM.GetStatus", s.shellyEMGetStatus)
+	mux.HandleFunc("/rpc/EMData.GetStatus", s.shellyEMDataGetStatus)
 	mux.HandleFunc("/rpc/Sys.GetStatus", s.sysGetStatus)
 	mux.HandleFunc("/rpc/Sys.GetConfig", s.sysGetConfig)
 
