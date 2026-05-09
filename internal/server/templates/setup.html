@@ -30,6 +30,10 @@ input:focus,select:focus{outline:none;border-color:#e94560}
   padding:.5rem;margin-bottom:.75rem}
 #ssid-list li{padding:.35rem .5rem;cursor:pointer;border-radius:.3rem}
 #ssid-list li:hover{background:#1a4a80;color:#fff}
+#poweropti-list{display:none;list-style:none;background:#0f3460;border-radius:.5rem;
+  padding:.5rem;margin-bottom:.75rem}
+#poweropti-list li{padding:.35rem .5rem;cursor:pointer;border-radius:.3rem;font-family:monospace;font-size:.9rem}
+#poweropti-list li:hover{background:#1a4a80;color:#fff}
 .pw-wrap{position:relative;margin-bottom:.75rem}
 .pw-wrap input{margin-bottom:0;padding-right:3rem}
 .pw-toggle{position:absolute;right:.75rem;top:50%;transform:translateY(-50%);
@@ -67,11 +71,14 @@ input:focus,select:focus{outline:none;border-color:#e94560}
 
   <div class="card">
     <h2>poweropti</h2>
+    <button type="button" class="scan-btn" onclick="scanPoweropti()">🔍 Automatisch suchen</button>
+    <ul id="poweropti-list"></ul>
+    <div id="poweropti-status" style="font-size:.82rem;color:#6b7280;margin-bottom:.5rem"></div>
     <label>IP-Adresse des poweropti</label>
-    <input type="text" name="poweropti_ip" placeholder="192.168.1.100"
+    <input type="text" name="poweropti_ip" id="poweropti_ip" placeholder="192.168.1.100"
            value="{{.Cfg.PoweroptiIP}}" required>
     <label>API-Key / Seriennummer</label>
-    <input type="text" name="poweropti_api_key" placeholder="abc123"
+    <input type="text" name="poweropti_api_key" id="poweropti_api_key" placeholder="abc123"
            value="{{.Cfg.PoweroptiAPIKey}}" required>
     <p class="hint">Wird als X-API-KEY-Header bei der Geräteabfrage verwendet.</p>
   </div>
@@ -109,10 +116,13 @@ input:focus,select:focus{outline:none;border-color:#e94560}
 </form>
 
 <script>
-// Auto-scan WiFi networks on page load
+// Auto-scan WiFi networks on page load; also scan for poweropti if IP not set
 window.addEventListener('load', function() {
   scanWifi();
   checkSameNetwork();
+  if (!document.getElementById('poweropti_ip').value) {
+    scanPoweropti();
+  }
 });
 
 function scanWifi() {
@@ -151,6 +161,50 @@ function togglePassword() {
     btn.textContent = '👁';
     btn.title = 'Passwort anzeigen';
   }
+}
+
+function scanPoweropti() {
+  var statusEl = document.getElementById('poweropti-status');
+  var listEl   = document.getElementById('poweropti-list');
+  statusEl.textContent = '🔍 Suche läuft…';
+  listEl.innerHTML = '';
+  listEl.style.display = 'none';
+  fetch('/setup/scan-poweropti').then(function(r){ return r.json(); }).then(function(d) {
+    var devices = d.devices || [];
+    if (devices.length === 0) {
+      statusEl.textContent = '⚠ Kein poweropti gefunden. Bitte IP manuell eingeben.';
+      return;
+    }
+    if (devices.length === 1) {
+      // Auto-prefill the single found device
+      document.getElementById('poweropti_ip').value = devices[0].ip;
+      if (devices[0].mac) {
+        var apiKey = devices[0].mac.replace(/:/g,'').toLowerCase();
+        document.getElementById('poweropti_api_key').value = apiKey;
+      }
+      statusEl.textContent = '✅ poweropti gefunden und eingetragen: ' + devices[0].ip;
+      return;
+    }
+    // Multiple devices – let user choose
+    statusEl.textContent = devices.length + ' poweropti-Geräte gefunden – bitte auswählen:';
+    devices.forEach(function(dev) {
+      var li = document.createElement('li');
+      var label = dev.ip + (dev.mac ? '  (' + dev.mac + ')' : '');
+      li.textContent = label;
+      li.onclick = function() {
+        document.getElementById('poweropti_ip').value = dev.ip;
+        if (dev.mac) {
+          document.getElementById('poweropti_api_key').value = dev.mac.replace(/:/g,'').toLowerCase();
+        }
+        listEl.style.display = 'none';
+        statusEl.textContent = '✅ Ausgewählt: ' + dev.ip;
+      };
+      listEl.appendChild(li);
+    });
+    listEl.style.display = 'block';
+  }).catch(function(e) {
+    statusEl.textContent = '⚠ Suche fehlgeschlagen: ' + e;
+  });
 }
 
 function checkSameNetwork() {

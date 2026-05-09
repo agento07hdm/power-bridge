@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -11,6 +12,52 @@ import (
 
 	"github.com/fedzzito/power-bridge/internal/config"
 )
+
+// --------------------------------------------------------------------------
+// Poweropti auto-discovery (GET /setup/scan-poweropti)
+//
+// Tries to resolve the well-known hostname "poweropti" / "poweropti.local"
+// and looks up each found IP in the kernel ARP table to retrieve the MAC
+// address, which doubles as the poweropti API key.
+// --------------------------------------------------------------------------
+
+// discoveredDevice holds the network identity of a found poweropti unit.
+type discoveredDevice struct {
+	IP  string `json:"ip"`
+	MAC string `json:"mac"` // uppercase, colon-separated – also used as API key
+}
+
+// discoverPoweropti resolves the well-known "poweropti" hostname via both
+// plain DNS and mDNS (.local) and deduplicates the results.
+func discoverPoweropti() []discoveredDevice {
+	seen := make(map[string]struct{})
+	var devices []discoveredDevice
+
+	for _, hostname := range []string{"poweropti", "poweropti.local"} {
+		addrs, err := net.LookupHost(hostname)
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if _, ok := seen[addr]; ok {
+				continue
+			}
+			seen[addr] = struct{}{}
+			mac := lookupMACFromARP(addr)
+			devices = append(devices, discoveredDevice{IP: addr, MAC: mac})
+		}
+	}
+	return devices
+}
+
+func (s *Server) setupScanPoweropti(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	devices := discoverPoweropti()
+	if devices == nil {
+		devices = []discoveredDevice{}
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"devices": devices})
+}
 
 // --------------------------------------------------------------------------
 // Setup page (GET /setup)

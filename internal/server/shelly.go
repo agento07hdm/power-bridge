@@ -191,9 +191,10 @@ type shellyStatusResponse struct {
 }
 
 type sysStatus struct {
-	Uptime    int64  `json:"uptime"`
-	MemFree   int    `json:"ram_free"`
-	MemTotal  int    `json:"ram_size"`
+	Uptime      int64   `json:"uptime"`
+	MemFree     int     `json:"ram_free"`
+	MemTotal    int     `json:"ram_size"`
+	Temperature float64 `json:"temperature"`
 }
 
 type wifiStatus struct {
@@ -204,16 +205,18 @@ type wifiStatus struct {
 }
 
 func (s *Server) buildShellyStatus() shellyStatusResponse {
+	ram := getRealRAM()
 	return shellyStatusResponse{
 		EM0: s.buildEMStatus(),
 		Sys: sysStatus{
-			Uptime:   uptimeSeconds(),
-			MemFree:  48 * 1024 * 1024,
-			MemTotal: 64 * 1024 * 1024,
+			Uptime:      uptimeSeconds(),
+			MemFree:     ram.Free,
+			MemTotal:    ram.Total,
+			Temperature: getCPUTemp(),
 		},
 		Wifi: wifiStatus{
 			SSID:   s.cfg.WIFISSID,
-			RSSI:   -65,
+			RSSI:   getWifiRSSI(),
 			IP:     getLocalIP(),
 			Status: "got ip",
 		},
@@ -326,18 +329,20 @@ type sysGetStatusResponse struct {
 	WebhookRev       int            `json:"webhook_rev"`
 	AvailableUpdates map[string]any `json:"available_updates"`
 	ResetReason      int            `json:"reset_reason"`
+	Temperature      float64        `json:"temperature"`
 }
 
 func (s *Server) buildSysStatus() sysGetStatusResponse {
 	now := time.Now()
+	ram := getRealRAM()
 	return sysGetStatusResponse{
 		MAC:              macNoColons(s.cfg.ShellyMAC),
 		RestartRequired:  false,
 		Time:             now.Format("15:04:05"),
 		Unixtime:         now.Unix(),
 		Uptime:           uptimeSeconds(),
-		RAMSize:          64 * 1024 * 1024,
-		RAMFree:          48 * 1024 * 1024,
+		RAMSize:          ram.Total,
+		RAMFree:          ram.Free,
 		FSSize:           1048576,
 		FSFree:           524288,
 		CfgRev:           1,
@@ -346,6 +351,7 @@ func (s *Server) buildSysStatus() sysGetStatusResponse {
 		WebhookRev:       0,
 		AvailableUpdates: map[string]any{},
 		ResetReason:      1,
+		Temperature:      getCPUTemp(),
 	}
 }
 
