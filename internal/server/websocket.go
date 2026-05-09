@@ -43,7 +43,8 @@ type wsError struct {
 }
 
 // rpcDispatch maps a Shelly RPC method name to the result it should return.
-func (s *Server) rpcDispatch(method string) (any, error) {
+// params is the raw JSON params object from the request (may be nil).
+func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error) {
 	switch method {
 	case "Shelly.GetDeviceInfo":
 		return s.buildDeviceInfo(), nil
@@ -55,6 +56,16 @@ func (s *Server) rpcDispatch(method string) (any, error) {
 		return s.buildShellyComponents(), nil
 	case "EM.GetStatus":
 		return s.buildEMStatus(), nil
+	case "EMData.GetStatus":
+		if len(params) > 0 {
+			var p struct {
+				ID int `json:"id"`
+			}
+			if err := json.Unmarshal(params, &p); err == nil && p.ID != 0 {
+				return nil, fmt.Errorf("component not found: emdata:%d", p.ID)
+			}
+		}
+		return s.buildEMDataStatus(), nil
 	case "Sys.GetStatus":
 		return s.buildSysStatus(), nil
 	case "Sys.GetConfig":
@@ -89,7 +100,7 @@ func (s *Server) rpcWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		result, dispatchErr := s.rpcDispatch(req.Method)
+		result, dispatchErr := s.rpcDispatch(req.Method, req.Params)
 
 		resp := wsResponse{
 			ID:  req.ID,

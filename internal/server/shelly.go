@@ -276,6 +276,53 @@ func (s *Server) shellyGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // --------------------------------------------------------------------------
+// EMData.GetStatus
+// --------------------------------------------------------------------------
+
+type emDataStatusResponse struct {
+	ID                  int     `json:"id"`
+	TotalActEnergy      float64 `json:"total_act_energy"`
+	TotalActRetEnergy   float64 `json:"total_act_ret_energy"`
+	ATotalActEnergy     float64 `json:"a_total_act_energy"`
+	ATotalActRetEnergy  float64 `json:"a_total_act_ret_energy"`
+	BTotalActEnergy     float64 `json:"b_total_act_energy"`
+	BTotalActRetEnergy  float64 `json:"b_total_act_ret_energy"`
+	CTotalActEnergy     float64 `json:"c_total_act_energy"`
+	CTotalActRetEnergy  float64 `json:"c_total_act_ret_energy"`
+}
+
+// buildEMDataStatus constructs an emDataStatusResponse from the latest poweropti reading.
+// Phase values are distributed equally across L1/L2/L3 since only totals are available.
+func (s *Server) buildEMDataStatus() emDataStatusResponse {
+	var consumedWh, deliveredWh float64
+	if s.poller != nil {
+		rd := s.poller.Latest()
+		consumedWh = rd.ConsumedWh
+		deliveredWh = rd.DeliveredWh
+	}
+
+	aConsumed, bConsumed, cConsumed := distributeAcrossPhases(consumedWh)
+	aDelivered, bDelivered, cDelivered := distributeAcrossPhases(deliveredWh)
+
+	return emDataStatusResponse{
+		ID:                 0,
+		TotalActEnergy:     round3(consumedWh),
+		TotalActRetEnergy:  round3(deliveredWh),
+		ATotalActEnergy:    aConsumed,
+		ATotalActRetEnergy: aDelivered,
+		BTotalActEnergy:    bConsumed,
+		BTotalActRetEnergy: bDelivered,
+		CTotalActEnergy:    cConsumed,
+		CTotalActRetEnergy: cDelivered,
+	}
+}
+
+func (s *Server) shellyEMDataGetStatus(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildEMDataStatus())
+}
+
+// --------------------------------------------------------------------------
 // Shelly.GetComponents
 // --------------------------------------------------------------------------
 
@@ -292,6 +339,7 @@ type component struct {
 
 func (s *Server) buildShellyComponents() componentsResponse {
 	em := s.buildEMStatus()
+	emdata := s.buildEMDataStatus()
 	return componentsResponse{
 		Components: []component{
 			{
@@ -299,8 +347,13 @@ func (s *Server) buildShellyComponents() componentsResponse {
 				Status: em,
 				Config: emConfig{ID: 0},
 			},
+			{
+				Key:    "emdata:0",
+				Status: emdata,
+				Config: emConfig{ID: 0},
+			},
 		},
-		Total: 1,
+		Total: 2,
 	}
 }
 
@@ -455,4 +508,13 @@ func pfFromSign(p float64) float64 {
 		return -1.0
 	}
 	return 1.0
+}
+
+// distributeAcrossPhases splits total equally across three phases (L1/L2/L3),
+// assigning any rounding remainder to phase C.
+func distributeAcrossPhases(total float64) (a, b, c float64) {
+	a = round3(total / 3)
+	b = round3(total / 3)
+	c = round3(total - a - b)
+	return
 }

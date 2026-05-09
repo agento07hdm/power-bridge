@@ -254,6 +254,7 @@ func TestRPCWebSocketDispatch(t *testing.T) {
 		"Shelly.GetConfig",
 		"Shelly.GetComponents",
 		"EM.GetStatus",
+		"EMData.GetStatus",
 		"Sys.GetStatus",
 		"Sys.GetConfig",
 	}
@@ -281,6 +282,77 @@ func TestRPCWebSocketDispatch(t *testing.T) {
 		if id, _ := resp["id"].(float64); int(id) != i+1 {
 			t.Errorf("%s: id expected %d, got %v", method, i+1, resp["id"])
 		}
+	}
+}
+
+func TestEMDataGetStatus(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/EMData.GetStatus?id=0", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, field := range []string{
+		"id",
+		"total_act_energy", "total_act_ret_energy",
+		"a_total_act_energy", "a_total_act_ret_energy",
+		"b_total_act_energy", "b_total_act_ret_energy",
+		"c_total_act_energy", "c_total_act_ret_energy",
+	} {
+		if _, ok := resp[field]; !ok {
+			t.Errorf("missing required field %q", field)
+		}
+	}
+}
+
+func TestShellyGetComponents_ContainsEMData(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/Shelly.GetComponents", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	components, ok := resp["components"].([]any)
+	if !ok {
+		t.Fatal("missing or invalid 'components' field")
+	}
+
+	keys := make(map[string]bool)
+	for _, c := range components {
+		if cm, ok := c.(map[string]any); ok {
+			if k, ok := cm["key"].(string); ok {
+				keys[k] = true
+			}
+		}
+	}
+
+	if !keys["em:0"] {
+		t.Error("components must contain 'em:0'")
+	}
+	if !keys["emdata:0"] {
+		t.Error("components must contain 'emdata:0'")
+	}
+
+	if total, ok := resp["total"].(float64); !ok || int(total) != 2 {
+		t.Errorf("total: expected 2, got %v", resp["total"])
 	}
 }
 
