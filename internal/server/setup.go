@@ -31,7 +31,7 @@ type discoveredDevice struct {
 // plain DNS and mDNS (.local) and deduplicates the results.
 func discoverPoweropti() []discoveredDevice {
 	seen := make(map[string]struct{})
-	var devices []discoveredDevice
+	devices := []discoveredDevice{}
 
 	for _, hostname := range []string{"poweropti", "poweropti.local"} {
 		addrs, err := net.LookupHost(hostname)
@@ -52,11 +52,7 @@ func discoverPoweropti() []discoveredDevice {
 
 func (s *Server) setupScanPoweropti(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
-	devices := discoverPoweropti()
-	if devices == nil {
-		devices = []discoveredDevice{}
-	}
-	_ = json.NewEncoder(w).Encode(map[string]any{"devices": devices})
+	_ = json.NewEncoder(w).Encode(map[string]any{"devices": discoverPoweropti()})
 }
 
 // --------------------------------------------------------------------------
