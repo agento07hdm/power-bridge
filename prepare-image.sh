@@ -74,6 +74,15 @@ fi
 # Reset update channel to stable
 echo "stable" > /etc/power-bridge/update-channel 2>/dev/null || true
 
+# ── 2b. Clear WiFi credentials from wpa_supplicant ───────────────────────────
+step "Clearing wpa_supplicant WiFi credentials…"
+cat > /etc/wpa_supplicant/wpa_supplicant.conf << 'EOF'
+country=DE
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+EOF
+ok "wpa_supplicant.conf cleared (no stored networks)"
+
 # ── 3. Remove SSH host keys (regenerated on first boot) ───────────────────────
 step "Removing SSH host keys…"
 rm -f /etc/ssh/ssh_host_*

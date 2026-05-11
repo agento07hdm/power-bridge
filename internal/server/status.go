@@ -98,15 +98,52 @@ type apiStatusResponse struct {
 	Errors             int     `json:"errors"`
 	LastError          string  `json:"last_error"`
 	UptimeSeconds      int64   `json:"uptime_s"`
-	LastReadAt         string  `json:"last_read_at"`          // RFC3339 or ""
-	PoweroptiTimestamp int64   `json:"poweropti_timestamp"`   // device unix epoch
+	LastReadAt         string  `json:"last_read_at"`        // RFC3339 or ""
+	PoweroptiTimestamp int64   `json:"poweropti_timestamp"` // device unix epoch
+
+	// Bridge network identity
+	BridgeIP  string `json:"bridge_ip"`
+	BridgeMAC string `json:"bridge_mac"`
+	WifiSSID  string `json:"wifi_ssid"`
+	WifiRSSI  int    `json:"wifi_rssi"`
+	IsAPMode  bool   `json:"is_ap_mode"`
+
+	// Poweropti identity
+	PoweroptiIP  string `json:"poweropti_ip"`
+	PoweroptiMAC string `json:"poweropti_mac"` // from ARP cache
+
+	// Shelly emulation identity
+	ShellyID    string `json:"shelly_id"`
+	ShellyMAC   string `json:"shelly_mac"`
+	ShellyModel string `json:"shelly_model"`
+	PhaseMode   string `json:"phase_mode"`
+
+	// Software version
+	AppVersion string `json:"version"`
 }
 
 func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
+	bridgeIP := getLocalIP()
 	resp := apiStatusResponse{
 		Configured:    s.cfg.Configured,
 		UptimeSeconds: uptimeSeconds(),
+
+		BridgeIP:  bridgeIP,
+		BridgeMAC: getInterfaceMAC("wlan0"),
+		WifiSSID:  s.cfg.WIFISSID,
+		WifiRSSI:  getWifiRSSI(),
+		IsAPMode:  bridgeIP == apModeIP,
+
+		PoweroptiIP:  s.cfg.PoweroptiIP,
+		PoweroptiMAC: lookupMACFromARP(s.cfg.PoweroptiIP),
+
+		ShellyID:    shellyID(s.cfg.ShellyMAC),
+		ShellyMAC:   s.cfg.ShellyMAC,
+		ShellyModel: "SPEM-003CEBEU",
+		PhaseMode:   string(s.cfg.PhaseMode),
+
+		AppVersion: Version,
 	}
 	if s.poller != nil {
 		rd := s.poller.Latest()

@@ -3,184 +3,477 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>power-bridge – Status</title>
+<title>power-bridge</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:1rem}
-h1{color:#e94560;margin-bottom:1.5rem;font-size:1.4rem}
-h2{color:#aaa;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;margin:1.5rem 0 .5rem}
-.card{background:#16213e;border-radius:.75rem;padding:1.25rem;margin-bottom:1rem}
-.row{display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;
-     border-bottom:1px solid #1e2a50}
+body{font-family:system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:.75rem;max-width:520px;margin:0 auto}
+h1{color:#e94560;font-size:1.3rem;font-weight:700}
+h2{color:#aaa;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin:.1rem 0 .6rem}
+.header{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
+.header h1{flex:1;min-width:0}
+.lang-btn{background:none;border:none;cursor:pointer;font-size:1.3rem;padding:.1rem;opacity:.5;transition:opacity .15s}
+.lang-btn.active{opacity:1}
+.card{background:#16213e;border-radius:.75rem;padding:1rem 1.1rem;margin-bottom:.85rem}
+.row{display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid #1e2a50}
 .row:last-child{border-bottom:none}
-.label{font-size:.85rem;color:#aaa}
-.value{font-size:.95rem;font-weight:600}
-.ok{color:#6ee7b7}
-.err{color:#f87171}
-.warn{color:#fcd34d}
-.big-watt{font-size:2rem;font-weight:700;color:#e94560;text-align:center;padding:.5rem 0}
-.btn{display:inline-block;padding:.55rem 1.2rem;border-radius:.5rem;border:none;
-  cursor:pointer;font-size:.9rem;font-weight:600;transition:opacity .15s;margin:.3rem .2rem}
+.label{font-size:.82rem;color:#8a96aa}
+.value{font-size:.9rem;font-weight:600;text-align:right;word-break:break-all;max-width:60%}
+.ok{color:#6ee7b7}.err{color:#f87171}.warn{color:#fcd34d}
+.big-watt{font-size:1.9rem;font-weight:700;color:#e94560;text-align:center;padding:.4rem 0 .2rem}
+.kwh-row{display:flex;justify-content:center;gap:1.4rem;font-size:.82rem;color:#aaa;margin-bottom:.5rem}
+.btn{display:inline-flex;align-items:center;padding:.5rem 1rem;border-radius:.5rem;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:opacity .15s;margin:.25rem .2rem .25rem 0}
 .btn-primary{background:#e94560;color:#fff}
 .btn-secondary{background:#0f3460;color:#eee;border:1px solid #333}
-.btn:hover{opacity:.85}
-.btn:disabled{opacity:.4;cursor:default}
-#log-box{background:#0a0a1a;border-radius:.5rem;padding:.75rem;font-family:monospace;
-  font-size:.78rem;color:#9ca3af;max-height:12rem;overflow-y:auto;white-space:pre-wrap}
-.alert{padding:.75rem 1rem;border-radius:.5rem;margin-bottom:1rem;font-size:.9rem}
+.btn-danger{background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b}
+.btn:hover{opacity:.82}.btn:disabled{opacity:.35;cursor:default}
+.badge{display:inline-block;padding:.2rem .55rem;border-radius:2rem;font-size:.75rem;font-weight:700}
+.badge-ok{background:#064e3b;color:#6ee7b7}
+.badge-err{background:#450a0a;color:#f87171}
+.badge-warn{background:#422006;color:#fcd34d}
+.traffic-wrap{display:flex;align-items:center;gap:.45rem;background:#0f3460;border-radius:2rem;padding:.25rem .7rem .25rem .4rem}
+.traffic-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.traffic-text{font-size:.75rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+.update-banner{background:#1e3a5f;border:1px solid #3b82f6;border-radius:.6rem;padding:.7rem 1rem;margin-bottom:.85rem;display:none;align-items:center;gap:.6rem;flex-wrap:wrap}
+.update-info{flex:1;font-size:.85rem;color:#93c5fd}
+details{margin-top:.5rem}
+summary{cursor:pointer;font-size:.82rem;color:#5b8dee;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'\25B6';display:inline-block;transition:transform .2s;font-size:.7rem}
+details[open] summary::before{transform:rotate(90deg)}
+.details-body{padding:.5rem 0 0 .5rem}
+.endpoints{font-family:monospace;font-size:.78rem}
+.endpoint{display:block;color:#5b8dee;padding:.15rem 0;text-decoration:none}
+.endpoint:hover{color:#93c5fd}
+.wifi-row{display:flex;align-items:center;gap:.5rem}
+.wifi-icon{flex-shrink:0}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-box{background:#16213e;border-radius:.75rem;padding:1.1rem;width:100%;max-width:480px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+.modal-title{font-size:1rem;font-weight:700;color:#e94560}
+.chart-svg{width:100%;height:200px;background:#0a0a1a;border-radius:.5rem;display:block}
+.chart-info{font-size:.85rem;color:#aaa;margin-top:.5rem;text-align:center}
+.alert{padding:.65rem .9rem;border-radius:.5rem;margin-bottom:.85rem;font-size:.88rem}
 .alert-success{background:#064e3b;color:#6ee7b7}
-.endpoints{font-family:monospace;font-size:.8rem;color:#5b8dee}
-.endpoint{display:block;padding:.2rem 0}
-.age{font-size:.8rem;color:#6b7280}
+.mono{font-family:monospace;font-size:.82rem;color:#9ca3af}
 </style>
 </head>
 <body>
-<h1>⚡ power-bridge</h1>
 
 {{if .SetupDone}}
-<div class="alert alert-success">✅ Konfiguration gespeichert. Verbinde mit WLAN…</div>
+<div class="alert alert-success">&#x2705; <span data-i18n="setup_done">Konfiguration gespeichert. Verbinde mit WLAN&#x2026;</span></div>
 {{end}}
 
+<!-- Header -->
+<div class="header">
+  <h1>&#x26A1; power-bridge</h1>
+  <div id="traffic-wrap" class="traffic-wrap">
+    <div id="traffic-dot" class="traffic-dot" style="background:#fbbf24"></div>
+    <span id="traffic-text" class="traffic-text" data-i18n="status_wait">&#x2026;</span>
+  </div>
+  <button class="lang-btn active" id="btn-de" onclick="setLang('de')" title="Deutsch">&#x1F1E9;&#x1F1EA;</button>
+  <button class="lang-btn" id="btn-en" onclick="setLang('en')" title="English">&#x1F1EC;&#x1F1E7;</button>
+</div>
+
+<!-- OTA Update Banner -->
+<div class="update-banner" id="update-banner">
+  <span class="update-info" id="update-info"></span>
+  <button class="btn btn-primary" onclick="applyUpdate()" id="btn-update" data-i18n="btn_update">&#x2B06; Aktualisieren</button>
+  <button class="btn btn-secondary" onclick="dismissUpdate()" style="padding:.4rem .7rem">&#x2715;</button>
+</div>
+
+<!-- Section 1: poweropti -->
 <div class="card">
+  <h2 data-i18n="section_poweropti">&#x1F4E1; poweropti</h2>
   <div class="row">
-    <span class="label">Gerät</span>
-    <span class="value">{{.Hostname}}.local</span>
+    <span class="label" data-i18n="lbl_ip">IP-Adresse</span>
+    <span class="value mono" id="po-ip">&#x2013;</span>
   </div>
   <div class="row">
-    <span class="label">Version</span>
-    <span class="value" style="font-size:.85rem;color:#6b7280">{{.Version}}</span>
+    <span class="label" data-i18n="lbl_mac">MAC-Adresse</span>
+    <span class="value mono" id="po-mac">&#x2013;</span>
   </div>
   <div class="row">
-    <span class="label">Poweropti</span>
-    <span class="value {{if .PoweroptiOK}}ok{{else}}err{{end}}" id="po-status">
-      {{if .PoweroptiOK}}✓ Erreichbar{{else}}✗ Fehler{{end}}
+    <span class="label" data-i18n="lbl_status">Status</span>
+    <span id="po-badge" class="badge badge-warn">&#x2026;</span>
+  </div>
+  <div id="po-error" style="display:none;color:#f87171;font-size:.78rem;padding:.3rem 0 0"></div>
+  <div style="margin-top:.6rem">
+    <div class="big-watt" id="watt-display">&#x2013; W</div>
+    <div class="kwh-row">
+      <span id="consumed-display"></span>
+      <span id="delivered-display"></span>
+    </div>
+    <div style="text-align:center;font-size:.75rem;color:#6b7280;margin-bottom:.4rem" id="po-age"></div>
+  </div>
+  <div style="text-align:center;margin-top:.3rem">
+    <button class="btn btn-secondary" onclick="openChart()" data-i18n="btn_chart">&#x1F4C8; Leistungswertanalyse</button>
+  </div>
+</div>
+
+<!-- Section 2: power-bridge -->
+<div class="card">
+  <h2 data-i18n="section_bridge">&#x1F50C; power-bridge</h2>
+  <div class="row">
+    <span class="label" data-i18n="lbl_ip">IP-Adresse</span>
+    <span class="value mono" id="br-ip">&#x2013;</span>
+  </div>
+  <div class="row">
+    <span class="label" data-i18n="lbl_mac">MAC-Adresse</span>
+    <span class="value mono" id="br-mac">&#x2013;</span>
+  </div>
+  <div class="row">
+    <span class="label" data-i18n="lbl_wifi_status">WLAN</span>
+    <span id="br-wifi-status" class="value" style="display:flex;align-items:center;gap:.4rem;justify-content:flex-end">
+      <svg id="wifi-icon" class="wifi-icon" width="28" height="22" viewBox="0 0 28 22" aria-hidden="true">
+        <path id="wi4" d="M1,10 Q14,0 27,10" stroke="#444" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path id="wi3" d="M4.5,14 Q14,5 23.5,14" stroke="#444" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path id="wi2" d="M8.5,18 Q14,11 19.5,18" stroke="#444" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <circle id="wi1" cx="14" cy="21" r="2" fill="#444"/>
+      </svg>
+      <span id="wifi-label">&#x2013;</span>
     </span>
   </div>
-  <div id="po-error" style="display:none;color:#f87171;font-size:.82rem;padding:.35rem 0 0"></div>
   <div class="row">
-    <span class="label">IP</span>
-    <span class="value">{{.PoweroptiIP}}</span>
+    <span class="label">RSSI</span>
+    <span class="value mono" id="br-rssi">&#x2013;</span>
   </div>
+
+  <!-- Shelly emulation (collapsible) -->
+  <details style="margin-top:.6rem">
+    <summary data-i18n="section_shelly">Shelly-Emulation</summary>
+    <div class="details-body">
+      <div class="row">
+        <span class="label">Shelly-ID</span>
+        <span class="value mono" id="sh-id" style="font-size:.75rem">&#x2013;</span>
+      </div>
+      <div class="row">
+        <span class="label" data-i18n="lbl_mac">MAC</span>
+        <span class="value mono" id="sh-mac">&#x2013;</span>
+      </div>
+      <div class="row">
+        <span class="label" data-i18n="lbl_model">Modell</span>
+        <span class="value" id="sh-model">&#x2013;</span>
+      </div>
+      <div class="row">
+        <span class="label" data-i18n="lbl_phase">Phasenverteilung</span>
+        <span class="value" id="sh-phase">&#x2013;</span>
+      </div>
+      <div style="margin-top:.6rem">
+        <div class="label" style="margin-bottom:.4rem" data-i18n="lbl_endpoints">Endpunkte</div>
+        <div class="endpoints">
+          <a class="endpoint" href="/rpc/EM.GetStatus?id=0" target="_blank">/rpc/EM.GetStatus?id=0</a>
+          <a class="endpoint" href="/rpc/Shelly.GetStatus" target="_blank">/rpc/Shelly.GetStatus</a>
+          <a class="endpoint" href="/rpc/Shelly.GetDeviceInfo" target="_blank">/rpc/Shelly.GetDeviceInfo</a>
+          <a class="endpoint" href="/rpc/Shelly.GetConfig" target="_blank">/rpc/Shelly.GetConfig</a>
+          <a class="endpoint" href="/rpc/Shelly.GetComponents" target="_blank">/rpc/Shelly.GetComponents</a>
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- Section 3: WLAN config -->
+<div class="card">
+  <h2 data-i18n="section_wifi">&#x1F4F6; WLAN-Konfiguration</h2>
   <div class="row">
-    <span class="label">Letzter Messwert</span>
-    <span class="value age" id="po-age">{{if .LastReadAt}}{{.PoweroptiAge}}{{else}}–{{end}}</span>
+    <span class="label" data-i18n="lbl_current_wifi">Aktuelles WLAN</span>
+    <span class="value" id="wifi-current">&#x2013;</span>
   </div>
-</div>
-
-<div class="card">
-  <h2>Aktuelle Leistung</h2>
-  <div class="big-watt" id="watt-display">{{.WattDisplay}}</div>
-  <div style="text-align:center;margin-top:.5rem">
-    <span class="value" id="consumed-display" style="font-size:.9rem;color:#aaa"></span>
-    <span style="color:#555;margin:0 .4rem">·</span>
-    <span class="value" id="delivered-display" style="font-size:.9rem;color:#aaa"></span>
+  <div style="margin-top:.75rem">
+    <a href="/setup" class="btn btn-secondary" data-i18n="btn_wifi_change">&#x1F527; WLAN &#xe4;ndern</a>
+    <button class="btn btn-danger" onclick="wifiForget()" data-i18n="btn_wifi_forget">&#x1F5D1; WLAN vergessen</button>
   </div>
+  <div id="forget-info" style="display:none;margin-top:.6rem;font-size:.82rem;color:#6ee7b7;background:#064e3b;padding:.5rem .75rem;border-radius:.4rem"></div>
+
+  <!-- Nearby networks -->
+  <details id="scan-details" style="margin-top:.75rem">
+    <summary data-i18n="lbl_scan_networks">Netzwerke in der Umgebung</summary>
+    <div class="details-body">
+      <button class="btn btn-secondary" style="margin-bottom:.4rem;font-size:.78rem" onclick="scanWifiStatus()" data-i18n="btn_scan">&#x1F50D; Suche aktualisieren</button>
+      <ul id="ssid-status-list" style="list-style:none;background:#0f3460;border-radius:.5rem;padding:.4rem"></ul>
+    </div>
+  </details>
 </div>
 
-<div class="card">
-  <h2>Shelly-Endpunkte</h2>
-  <div class="endpoints">
-    <a class="endpoint" href="/rpc/EM.GetStatus?id=0" target="_blank">/rpc/EM.GetStatus?id=0</a>
-    <a class="endpoint" href="/rpc/Shelly.GetStatus"  target="_blank">/rpc/Shelly.GetStatus</a>
-    <a class="endpoint" href="/rpc/Shelly.GetDeviceInfo" target="_blank">/rpc/Shelly.GetDeviceInfo</a>
-    <a class="endpoint" href="/rpc/Shelly.GetConfig"  target="_blank">/rpc/Shelly.GetConfig</a>
-    <a class="endpoint" href="/rpc/Shelly.GetComponents" target="_blank">/rpc/Shelly.GetComponents</a>
+<!-- Actions row -->
+<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem">
+  <button class="btn btn-primary" onclick="restartService()" data-i18n="btn_restart">&#x1F504; Neustart</button>
+  <a href="/setup" class="btn btn-secondary" data-i18n="btn_settings">&#x2699; Einstellungen</a>
+  <span style="flex:1"></span>
+  <span class="mono" id="ver-display" style="font-size:.72rem;color:#4b5563"></span>
+</div>
+<p id="action-msg" style="font-size:.78rem;color:#aaa;margin-bottom:.5rem"></p>
+
+<!-- Chart modal -->
+<div class="modal-overlay" id="chart-modal" onclick="closeChartIfBg(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="chart_title">&#x1F4C8; Leistungswertanalyse</span>
+      <button class="btn btn-secondary" onclick="closeChart()" style="padding:.3rem .7rem" data-i18n="chart_close">&#x2715; Schlie&#xDF;en</button>
+    </div>
+    <svg class="chart-svg" id="chart-svg" viewBox="0 0 400 200" preserveAspectRatio="none"></svg>
+    <div class="chart-info" id="chart-info"></div>
   </div>
-</div>
-
-<div class="card">
-  <h2>Aktionen</h2>
-  <button class="btn btn-secondary" onclick="testPoweropti()">🔌 Poweropti testen</button>
-  <a href="/rpc/EM.GetStatus?id=0" class="btn btn-secondary" target="_blank">📡 Shelly JSON</a>
-  <button class="btn btn-primary"  onclick="restartService()">🔄 Service neu starten</button>
-  <a href="/setup" class="btn btn-secondary">⚙️ Einstellungen</a>
-  <p id="action-msg" style="font-size:.8rem;color:#aaa;margin-top:.5rem"></p>
-</div>
-
-<div class="card">
-  <h2>Logs</h2>
-  <div id="log-box">{{range .Logs}}{{.}}
-{{end}}</div>
 </div>
 
 <script>
-// Format age of a RFC3339 timestamp
+var T={de:{
+  section_poweropti:'\u{1F4E1} poweropti',section_bridge:'\u{1F50C} power-bridge',
+  section_shelly:'Shelly-Emulation',section_wifi:'\u{1F4F6} WLAN-Konfiguration',
+  lbl_ip:'IP-Adresse',lbl_mac:'MAC-Adresse',lbl_status:'Status',
+  lbl_wifi_status:'WLAN',lbl_model:'Modell',lbl_phase:'Phasenverteilung',
+  lbl_endpoints:'Endpunkte',lbl_current_wifi:'Aktuelles WLAN',
+  lbl_scan_networks:'Netzwerke in der Umgebung',
+  po_ok:'\u2713 Verbunden',po_err:'\u2717 Nicht erreichbar',
+  wifi_connected:'Verbunden',wifi_ap:'AP-Modus (Setup)',wifi_no_ssid:'Nicht verbunden',
+  status_ok:'Alles in Ordnung',status_warn:'Verbunden \u2013 poweropti nicht erreichbar',
+  status_err:'AP-Modus \u2013 Setup erforderlich',status_wait:'\u2026',
+  btn_chart:'\u{1F4C8} Leistungswertanalyse',btn_wifi_change:'\u{1F527} WLAN \u00e4ndern',
+  btn_wifi_forget:'\u{1F5D1} WLAN vergessen',btn_scan:'\u{1F50D} Suche aktualisieren',
+  btn_restart:'\u{1F504} Neustart',btn_settings:'\u2699 Einstellungen',
+  btn_update:'\u2B06 Aktualisieren',update_available:'Update verf\u00fcgbar',
+  update_started:'Update wird eingespielt\u2026',
+  chart_title:'\u{1F4C8} Leistungswertanalyse',chart_close:'\u2715 Schlie\u00dfen',
+  forget_confirm:'WLAN-Zugangsdaten wirklich l\u00f6schen? Die power-bridge wechselt in den AP-Modus.',
+  forget_ap_info:'Verbinde dich jetzt mit dem WLAN "power-bridge" und \u00f6ffne http://192.168.4.1',
+  setup_done:'Konfiguration gespeichert. Verbinde mit WLAN\u2026',
+  phase_equal:'Gleich (L1=L2=L3)',phase_l1:'Alles auf L1',
+  restart_confirm:'Service wirklich neu starten?',
+  update_confirm:'Update jetzt durchf\u00fchren? Die bridge wird kurz neu gestartet.',
+  consumed:'\u2193 Bezug',delivered:'\u2191 Einspeisung',
+  last_update:'Letzte Aktualisierung'
+},en:{
+  section_poweropti:'\u{1F4E1} poweropti',section_bridge:'\u{1F50C} power-bridge',
+  section_shelly:'Shelly Emulation',section_wifi:'\u{1F4F6} WiFi Configuration',
+  lbl_ip:'IP address',lbl_mac:'MAC address',lbl_status:'Status',
+  lbl_wifi_status:'WiFi',lbl_model:'Model',lbl_phase:'Phase distribution',
+  lbl_endpoints:'Endpoints',lbl_current_wifi:'Current WiFi',
+  lbl_scan_networks:'Networks nearby',
+  po_ok:'\u2713 Connected',po_err:'\u2717 Unreachable',
+  wifi_connected:'Connected',wifi_ap:'AP mode (setup)',wifi_no_ssid:'Not connected',
+  status_ok:'All systems OK',status_warn:'Connected \u2013 poweropti unreachable',
+  status_err:'AP mode \u2013 setup required',status_wait:'\u2026',
+  btn_chart:'\u{1F4C8} Power analysis',btn_wifi_change:'\u{1F527} Change WiFi',
+  btn_wifi_forget:'\u{1F5D1} Forget WiFi',btn_scan:'\u{1F50D} Refresh scan',
+  btn_restart:'\u{1F504} Restart',btn_settings:'\u2699 Settings',
+  btn_update:'\u2B06 Update now',update_available:'Update available',
+  update_started:'Update in progress\u2026',
+  chart_title:'\u{1F4C8} Power analysis',chart_close:'\u2715 Close',
+  forget_confirm:'Really delete WiFi credentials? The power-bridge will switch to AP mode.',
+  forget_ap_info:'Connect to WiFi "power-bridge" and open http://192.168.4.1',
+  setup_done:'Configuration saved. Connecting to WiFi\u2026',
+  phase_equal:'Equal (L1=L2=L3)',phase_l1:'All on L1',
+  restart_confirm:'Really restart the service?',
+  update_confirm:'Apply update now? The bridge will restart briefly.',
+  consumed:'\u2193 Consumption',delivered:'\u2191 Feed-in',
+  last_update:'Last update'
+}};
+
+var lang=localStorage.getItem('pb-lang')||'de';
+function t(k){return(T[lang]&&T[lang][k])||T.de[k]||k;}
+function setLang(l){
+  lang=l;localStorage.setItem('pb-lang',l);
+  document.documentElement.lang=l;
+  document.getElementById('btn-de').classList.toggle('active',l==='de');
+  document.getElementById('btn-en').classList.toggle('active',l==='en');
+  applyLang();
+}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    var k=el.getAttribute('data-i18n');var v=t(k);if(v)el.textContent=v;
+  });
+}
+document.getElementById('btn-de').classList.toggle('active',lang==='de');
+document.getElementById('btn-en').classList.toggle('active',lang==='en');
+document.documentElement.lang=lang;
+
+function setWifiIcon(rssi,connected){
+  var bars=0;
+  if(connected){
+    if(rssi>-50)bars=4;else if(rssi>-65)bars=3;else if(rssi>-80)bars=2;else bars=1;
+  }
+  var arcs=['wi4','wi3','wi2'];var thr=[4,3,2];
+  for(var i=0;i<arcs.length;i++){
+    var el=document.getElementById(arcs[i]);
+    if(el)el.setAttribute('stroke',bars>=thr[i]?'#fff':'#444');
+  }
+  var dot=document.getElementById('wi1');
+  if(dot)dot.setAttribute('fill',bars>=1?'#fff':'#444');
+}
+
+function setTraffic(poOK,apMode){
+  var dot=document.getElementById('traffic-dot');
+  var txt=document.getElementById('traffic-text');
+  if(apMode){dot.style.background='#e94560';txt.textContent=t('status_err');}
+  else if(!poOK){dot.style.background='#fbbf24';txt.textContent=t('status_warn');}
+  else{dot.style.background='#6ee7b7';txt.textContent=t('status_ok');}
+}
+
+function fmtKwh(wh){
+  if(wh==null)return'';
+  return(wh/1000).toFixed(3)+' kWh';
+}
+function fmtWattSimple(w){
+  return w>=0?w.toFixed(1)+' W \u2193':(-w).toFixed(1)+' W \u2191';
+}
 function ageStr(iso){
-  if(!iso) return '–';
-  var diff=Math.round((Date.now()-new Date(iso).getTime())/1000);
-  if(diff<0) diff=0;
-  if(diff<60) return diff+'s ago';
-  return Math.round(diff/60)+'m ago';
+  if(!iso)return'\u2013';
+  var d=Math.round((Date.now()-new Date(iso).getTime())/1000);
+  if(d<0)d=0;if(d<60)return d+'s ago';return Math.round(d/60)+'m ago';
 }
+function phaseLabel(m){return m==='l1'?t('phase_l1'):t('phase_equal');}
 
-function fmtWh(wh){
-  if(wh==null) return '';
-  if(wh>=1e6) return (wh/1e6).toFixed(2)+' MWh';
-  if(wh>=1e3) return (wh/1e3).toFixed(1)+' kWh';
-  return wh.toFixed(0)+' Wh';
-}
-
+var scanAutoTriggered=false;
 (function poll(){
-  fetch('/api/status').then(r=>r.json()).then(function(d){
-    // Watt display
-    var w=d.watt;
-    var txt= w>=0 ? w.toFixed(1)+' W (Bezug)' : (-w).toFixed(1)+' W (Einspeisung)';
-    document.getElementById('watt-display').textContent=d.poweropti_ok?txt:'–';
-
-    // Status row
-    var s=document.getElementById('po-status');
-    s.textContent=d.poweropti_ok?'✓ Erreichbar':'✗ Fehler ('+d.errors+')';
-    s.className='value '+(d.poweropti_ok?'ok':'err');
-
-    // Last error
+  fetch('/api/status').then(function(r){return r.json();}).then(function(d){
+    document.getElementById('po-ip').textContent=d.poweropti_ip||'\u2013';
+    document.getElementById('po-mac').textContent=d.poweropti_mac||'\u2013';
+    var badge=document.getElementById('po-badge');
+    if(d.poweropti_ok){badge.textContent=t('po_ok');badge.className='badge badge-ok';}
+    else{badge.textContent=t('po_err');badge.className='badge badge-err';}
     var errEl=document.getElementById('po-error');
-    if(d.last_error){
-      var msg=d.last_error.length>200?d.last_error.slice(0,200)+'…':d.last_error;
-      errEl.textContent='⚠ '+msg;
-      errEl.style.display='block';
-    } else {
-      errEl.style.display='none';
+    if(d.last_error){errEl.textContent='\u26a0 '+d.last_error.slice(0,200);errEl.style.display='block';}
+    else errEl.style.display='none';
+    var wEl=document.getElementById('watt-display');
+    wEl.textContent=d.poweropti_ok?fmtWattSimple(d.watt):'\u2013';
+    wEl.style.color=d.watt<0?'#6ee7b7':'#e94560';
+    document.getElementById('consumed-display').textContent=d.poweropti_ok?t('consumed')+': '+fmtKwh(d.consumed_wh):'';
+    document.getElementById('delivered-display').textContent=d.poweropti_ok?t('delivered')+': '+fmtKwh(d.delivered_wh):'';
+    document.getElementById('po-age').textContent=d.last_read_at?t('last_update')+': '+ageStr(d.last_read_at):'';
+    document.getElementById('br-ip').textContent=d.bridge_ip||'\u2013';
+    document.getElementById('br-mac').textContent=d.bridge_mac||'\u2013';
+    var connected=!d.is_ap_mode&&!!d.wifi_ssid;
+    setWifiIcon(d.wifi_rssi,connected);
+    var wLabel=document.getElementById('wifi-label');
+    if(d.is_ap_mode)wLabel.textContent=t('wifi_ap');
+    else if(d.wifi_ssid)wLabel.textContent=d.wifi_ssid;
+    else wLabel.textContent=t('wifi_no_ssid');
+    document.getElementById('br-rssi').textContent=d.wifi_rssi+' dBm';
+    document.getElementById('sh-id').textContent=d.shelly_id||'\u2013';
+    document.getElementById('sh-mac').textContent=d.shelly_mac||'\u2013';
+    document.getElementById('sh-model').textContent=d.shelly_model||'\u2013';
+    document.getElementById('sh-phase').textContent=phaseLabel(d.phase_mode);
+    document.getElementById('wifi-current').textContent=d.is_ap_mode?t('wifi_ap'):(d.wifi_ssid||t('wifi_no_ssid'));
+    if(d.is_ap_mode&&!scanAutoTriggered){
+      scanAutoTriggered=true;
+      document.getElementById('scan-details').open=true;
+      scanWifiStatus();
     }
-
-    // Age
-    document.getElementById('po-age').textContent=ageStr(d.last_read_at);
-
-    // Energy counters
-    var cEl=document.getElementById('consumed-display');
-    var dEl=document.getElementById('delivered-display');
-    if(d.poweropti_ok){
-      cEl.textContent='↓ Bezug: '+fmtWh(d.consumed_wh);
-      dEl.textContent='↑ Einspeisung: '+fmtWh(d.delivered_wh);
-    } else {
-      cEl.textContent='';
-      dEl.textContent='';
-    }
+    setTraffic(d.poweropti_ok,d.is_ap_mode);
+    if(d.version)document.getElementById('ver-display').textContent='v'+d.version;
+    applyLang();
   }).catch(function(){});
   setTimeout(poll,3000);
 })();
 
-function testPoweropti(){
-  fetch('/api/test/poweropti').then(r=>r.json()).then(function(d){
-    document.getElementById('action-msg').textContent=
-      d.valid ? 'OK: '+d.watt.toFixed(1)+' W' : 'Fehler: '+(d.error||d.last_error||JSON.stringify(d));
-  });
+function scanWifiStatus(){
+  var list=document.getElementById('ssid-status-list');
+  list.innerHTML='<li style="color:#6b7280;padding:.2rem .4rem;font-size:.8rem">\u{1F50D} Suche\u2026</li>';
+  fetch('/setup/scan').then(function(r){return r.json();}).then(function(d){
+    list.innerHTML='';
+    var ssids=d.ssids||[];
+    if(!ssids.length){list.innerHTML='<li style="color:#6b7280;padding:.2rem .4rem;font-size:.8rem">Keine Netzwerke gefunden</li>';return;}
+    ssids.forEach(function(s){
+      var li=document.createElement('li');
+      li.textContent=s;
+      li.style.cssText='padding:.3rem .5rem;cursor:pointer;border-radius:.3rem;font-size:.85rem;color:#eee';
+      li.addEventListener('mouseover',function(){li.style.background='#1a4a80';});
+      li.addEventListener('mouseout',function(){li.style.background='';});
+      li.addEventListener('click',function(){window.location.href='/setup?ssid='+encodeURIComponent(s);});
+      list.appendChild(li);
+    });
+  }).catch(function(){list.innerHTML='<li style="color:#f87171;padding:.2rem .4rem;font-size:.8rem">Scan fehlgeschlagen</li>';});
 }
+
+function wifiForget(){
+  if(!confirm(t('forget_confirm')))return;
+  fetch('/api/wifi/forget',{method:'POST'}).then(function(r){return r.json();}).then(function(){
+    var info=document.getElementById('forget-info');
+    info.textContent=t('forget_ap_info');
+    info.style.display='block';
+  }).catch(function(){alert('Fehler beim Vergessen des WLANs');});
+}
+
 function restartService(){
-  if(!confirm('Service wirklich neu starten?'))return;
+  if(!confirm(t('restart_confirm')))return;
   fetch('/api/restart',{method:'POST'}).then(function(){
-    document.getElementById('action-msg').textContent='Neustart angefordert…';
+    document.getElementById('action-msg').textContent='Neustart angefordert\u2026';
   });
 }
 
-// Auto-refresh logs every 10 s
-(function pollLogs(){
-  fetch('/api/logs').then(r=>r.json()).then(function(d){
-    var box=document.getElementById('log-box');
-    box.textContent=(d.lines||[]).join('\n');
-    box.scrollTop=box.scrollHeight;
+function checkUpdate(){
+  fetch('/api/update/check').then(function(r){return r.json();}).then(function(d){
+    if(!d.update_available)return;
+    document.getElementById('update-info').textContent=t('update_available')+': '+d.current_version+' \u2192 '+d.latest_version;
+    document.getElementById('update-banner').style.display='flex';
   }).catch(function(){});
-  setTimeout(pollLogs,10000);
-})();
+}
+function applyUpdate(){
+  if(!confirm(t('update_confirm')))return;
+  var btn=document.getElementById('btn-update');btn.disabled=true;
+  fetch('/api/update/apply',{method:'POST'}).then(function(){
+    document.getElementById('update-info').textContent=t('update_started');
+  });
+}
+function dismissUpdate(){document.getElementById('update-banner').style.display='none';}
+
+var chartBuf=[];var chartTimer=null;
+function openChart(){
+  document.getElementById('chart-modal').style.display='flex';
+  if(!chartTimer)chartTimer=setInterval(chartTick,3000);
+  chartTick();
+}
+function closeChart(){
+  document.getElementById('chart-modal').style.display='none';
+  if(chartTimer){clearInterval(chartTimer);chartTimer=null;}
+}
+function closeChartIfBg(e){if(e.target===document.getElementById('chart-modal'))closeChart();}
+function chartTick(){
+  fetch('/api/status').then(function(r){return r.json();}).then(function(d){
+    chartBuf.push({t:Date.now(),w:d.watt});
+    if(chartBuf.length>200)chartBuf.shift();
+    renderChart(d);
+  }).catch(function(){});
+}
+function renderChart(d){
+  var svg=document.getElementById('chart-svg');
+  if(!svg||!chartBuf.length)return;
+  var W=400,H=200,PL=52,PR=10,PT=15,PB=25;
+  var pw=W-PL-PR,ph=H-PT-PB;
+  var watts=chartBuf.map(function(p){return p.w;});
+  var mn=Math.min.apply(null,watts),mx=Math.max.apply(null,watts);
+  var rng=mx-mn||100;mn-=rng*.1;mx+=rng*.1;
+  function sy(v){return PT+ph*(1-(v-mn)/(mx-mn));}
+  var pts=chartBuf.map(function(p,i){
+    var x=PL+(i/(chartBuf.length-1||1))*pw;
+    return x.toFixed(1)+','+sy(p.w).toFixed(1);
+  }).join(' ');
+  var zy=sy(0);
+  var h='';
+  h+='<line x1="'+PL+'" y1="'+PT+'" x2="'+PL+'" y2="'+(PT+ph)+'" stroke="#2a3a5e" stroke-width="1"/>';
+  h+='<line x1="'+PL+'" y1="'+(PT+ph)+'" x2="'+(PL+pw)+'" y2="'+(PT+ph)+'" stroke="#2a3a5e" stroke-width="1"/>';
+  if(zy>PT&&zy<PT+ph)
+    h+='<line x1="'+PL+'" y1="'+zy+'" x2="'+(PL+pw)+'" y2="'+zy+'" stroke="#3b4f7e" stroke-width="1" stroke-dasharray="4,4"/>';
+  if(chartBuf.length>1)
+    h+='<polyline points="'+pts+'" fill="none" stroke="#e94560" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  h+='<text x="'+(PL-4)+'" y="'+(PT+6)+'" text-anchor="end" fill="#9ca3af" font-size="11">'+Math.round(mx)+'</text>';
+  h+='<text x="'+(PL-4)+'" y="'+(PT+ph)+'" text-anchor="end" fill="#9ca3af" font-size="11">'+Math.round(mn)+'</text>';
+  if(zy>PT+14&&zy<PT+ph-8)
+    h+='<text x="'+(PL-4)+'" y="'+zy+'" text-anchor="end" fill="#9ca3af" font-size="11">0</text>';
+  if(chartBuf.length>1){
+    function fmt(ts){var d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')+':'+d.getSeconds().toString().padStart(2,'0');}
+    h+='<text x="'+PL+'" y="'+(PT+ph+16)+'" fill="#6b7280" font-size="10">'+fmt(chartBuf[0].t)+'</text>';
+    h+='<text x="'+(PL+pw)+'" y="'+(PT+ph+16)+'" text-anchor="end" fill="#6b7280" font-size="10">'+fmt(chartBuf[chartBuf.length-1].t)+'</text>';
+  }
+  svg.innerHTML=h;
+  if(d){
+    document.getElementById('chart-info').textContent=
+      fmtWattSimple(d.watt)+' | '+t('consumed')+' '+fmtKwh(d.consumed_wh)+' | '+t('delivered')+' '+fmtKwh(d.delivered_wh);
+  }
+}
+
+applyLang();
+checkUpdate();
 </script>
 </body>
 </html>

@@ -80,7 +80,7 @@ input:focus,select:focus{outline:none;border-color:#e94560}
     <label>API-Key / Seriennummer</label>
     <input type="text" name="poweropti_api_key" id="poweropti_api_key" placeholder="abc123"
            value="{{.Cfg.PoweroptiAPIKey}}" required>
-    <p class="hint">Wird als X-API-KEY-Header bei der Geräteabfrage verwendet.</p>
+    <p class="hint">Wird bei der automatischen Suche aus der MAC-Adresse ermittelt (Format: 12 Hex-Zeichen, z.B. <code>aabbccddeeff</code>). Bei manueller Eingabe der IP bitte entsprechend eintragen.</p>
   </div>
 
   <div class="card">
@@ -97,32 +97,40 @@ input:focus,select:focus{outline:none;border-color:#e94560}
   </div>
 
   <div class="card">
-    <h2>Geräteprofil &amp; Phasen</h2>
-    <label>Zielspeicher / Profil</label>
-    <select name="device_profile">
-      <option value="standard" {{if eq .Cfg.DeviceProfile "standard"}}selected{{end}}>Standard</option>
-      <option value="marstek"  {{if eq .Cfg.DeviceProfile "marstek"}} selected{{end}}>Marstek</option>
-      <option value="noah"     {{if eq .Cfg.DeviceProfile "noah"}}    selected{{end}}>Noah / Growatt</option>
-      <option value="hoymiles" {{if eq .Cfg.DeviceProfile "hoymiles"}}selected{{end}}>Hoymiles</option>
-    </select>
-    <label>Phasenverteilung</label>
+    <h2>Phasenverteilung</h2>
     <select name="phase_mode">
       <option value="equal" {{if eq .Cfg.PhaseMode "equal"}}selected{{end}}>Gleich (L1=L2=L3)</option>
       <option value="l1"    {{if eq .Cfg.PhaseMode "l1"}}   selected{{end}}>Alles auf L1</option>
     </select>
+    <input type="hidden" name="device_profile" value="{{.Cfg.DeviceProfile}}">
   </div>
 
   <button type="submit" class="btn btn-primary" style="width:100%">💾 Speichern &amp; Verbinden</button>
 </form>
 
 <script>
-// Auto-scan WiFi networks on page load; also scan for poweropti if IP not set
+// On load: check AP mode first, then decide whether to auto-scan WiFi
 window.addEventListener('load', function() {
-  scanWifi();
   checkSameNetwork();
+  // Auto-scan poweropti if IP not yet configured
   if (!document.getElementById('poweropti_ip').value) {
     scanPoweropti();
   }
+  // Auto-scan WiFi networks only when in AP mode (bridge not yet connected)
+  fetch('/api/status').then(function(r){ return r.json(); }).then(function(d) {
+    if (d.is_ap_mode || !d.configured) {
+      scanWifi();
+    }
+    // Pre-fill SSID from URL query parameter (when user clicks network from status page)
+    var params = new URLSearchParams(window.location.search);
+    var ssid = params.get('ssid');
+    if (ssid) {
+      document.getElementById('wifi_ssid').value = ssid;
+    }
+  }).catch(function() {
+    // Fallback: always scan (e.g. if /api/status unavailable at first run)
+    scanWifi();
+  });
 });
 
 function scanWifi() {
