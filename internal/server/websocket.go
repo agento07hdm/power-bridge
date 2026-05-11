@@ -81,6 +81,8 @@ func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error)
 		return s.buildSysStatus(), nil
 	case "Sys.GetConfig":
 		return s.buildSysConfig(), nil
+	case "WiFi.GetStatus":
+		return s.buildWifiStatus(), nil
 	default:
 		return nil, fmt.Errorf("method not found: %s", method)
 	}

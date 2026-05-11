@@ -239,6 +239,34 @@ func TestAPIStatusEndpoint(t *testing.T) {
 	}
 }
 
+func TestWiFiGetStatus(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/WiFi.GetStatus", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, field := range []string{"ssid", "rssi", "sta_ip", "status"} {
+		if _, ok := resp[field]; !ok {
+			t.Errorf("missing required field %q", field)
+		}
+	}
+
+	if status, ok := resp["status"].(string); !ok || status == "" {
+		t.Errorf("status: expected non-empty string, got %v", resp["status"])
+	}
+}
+
+
 func TestRPCWebSocketDispatch(t *testing.T) {
 	srv := newTestServer(t)
 	ts := httptest.NewServer(srv)
@@ -260,6 +288,7 @@ func TestRPCWebSocketDispatch(t *testing.T) {
 		"EMData.GetStatus",
 		"Sys.GetStatus",
 		"Sys.GetConfig",
+		"WiFi.GetStatus",
 	}
 
 	for i, method := range methods {

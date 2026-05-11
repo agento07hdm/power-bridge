@@ -491,6 +491,24 @@ func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // --------------------------------------------------------------------------
+// WiFi.GetStatus
+// --------------------------------------------------------------------------
+
+func (s *Server) buildWifiStatus() wifiStatus {
+	return wifiStatus{
+		SSID:   s.cfg.WIFISSID,
+		RSSI:   getWifiRSSI(),
+		IP:     getLocalIP(),
+		Status: "got ip",
+	}
+}
+
+func (s *Server) wifiGetStatus(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildWifiStatus())
+}
+
+// --------------------------------------------------------------------------
 // NotifyStatus  (WebSocket push event)
 // --------------------------------------------------------------------------
 
