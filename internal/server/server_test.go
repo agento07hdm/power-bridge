@@ -488,6 +488,11 @@ func TestShellyListMethods(t *testing.T) {
 			t.Errorf("Shelly.ListMethods missing required method %q", m)
 		}
 	}
+
+	// Legacy alias must not appear in the advertised method list.
+	if methodSet["WiFi.GetStatus"] {
+		t.Error("Shelly.ListMethods must not advertise legacy alias 'WiFi.GetStatus'")
+	}
 }
 
 func TestWifiGetConfig(t *testing.T) {
