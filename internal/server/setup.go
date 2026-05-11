@@ -152,12 +152,12 @@ network={
 
 	// Write and launch a detached check script that restarts power-bridge after
 	// confirming (or giving up on) the WiFi connection.
-	checkScript := `#!/bin/sh
+	checkScript := fmt.Sprintf(`#!/bin/sh
 # Wait for wpa_supplicant to associate.
-sleep 35
+sleep %d
 IP=$(ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1 | head -1)
 if [ -z "$IP" ] || [ "$IP" = "192.168.4.1" ]; then
-    logger -t power-bridge "WiFi connection timed out after 35s – reverting to AP mode"
+    logger -t power-bridge "WiFi connection timed out after %ds – reverting to AP mode"
     systemctl stop wpa_supplicant@wlan0 2>/dev/null || true
     systemctl stop wpa_supplicant 2>/dev/null || true
     systemctl start hostapd 2>/dev/null || true
@@ -166,7 +166,7 @@ else
     logger -t power-bridge "WiFi connected: $IP"
 fi
 systemctl restart power-bridge
-`
+`, wifiConnectionTimeoutSecs, wifiConnectionTimeoutSecs)
 	scriptPath := "/etc/power-bridge/wifi-check.sh"
 	if err := os.WriteFile(scriptPath, []byte(checkScript), 0o755); err != nil {
 		log.Printf("wifi-check script write failed: %v – falling back to direct restart", err)
@@ -180,7 +180,10 @@ systemctl restart power-bridge
 	}
 }
 
-// enableAPMode stops wpa_supplicant and starts hostapd + dnsmasq so that
+// wifiConnectionTimeoutSecs is the time in seconds the bridge waits after
+// attempting a WiFi connection before deciding it has failed and reverting
+// to AP mode.
+const wifiConnectionTimeoutSecs = 35
 // wlan0 operates as an Access Point. The static IP 192.168.4.1 is maintained
 // by dhcpcd.conf which was configured at install time.
 func enableAPMode() {
