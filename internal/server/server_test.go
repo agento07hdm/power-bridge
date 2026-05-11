@@ -286,7 +286,9 @@ func TestRPCWebSocketDispatch(t *testing.T) {
 		"Shelly.GetComponents",
 		"Shelly.ListMethods",
 		"EM.GetStatus",
+		"EM.GetConfig",
 		"EMData.GetStatus",
+		"EMData.GetConfig",
 		"Sys.GetStatus",
 		"Sys.GetConfig",
 		"WiFi.GetStatus",
@@ -336,9 +338,11 @@ func TestEMDataGetStatus(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
+	// total_act and total_act_ret are the field names expected by Home Assistant
+	// (aioshelly sensor key: "emdata", sub_key: "total_act" / "total_act_ret").
 	for _, field := range []string{
 		"id",
-		"total_act_energy", "total_act_ret_energy",
+		"total_act", "total_act_ret",
 		"a_total_act_energy", "a_total_act_ret_energy",
 		"b_total_act_energy", "b_total_act_ret_energy",
 		"c_total_act_energy", "c_total_act_ret_energy",
@@ -348,6 +352,90 @@ func TestEMDataGetStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestEMGetConfig(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/EM.GetConfig?id=0", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, field := range []string{"id", "phase_selector", "blink_mode_selector"} {
+		if _, ok := resp[field]; !ok {
+			t.Errorf("missing required field %q", field)
+		}
+	}
+	if id, ok := resp["id"].(float64); !ok || int(id) != 0 {
+		t.Errorf("id: expected 0, got %v", resp["id"])
+	}
+}
+
+func TestEMDataGetConfig(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/EMData.GetConfig?id=0", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if id, ok := resp["id"].(float64); !ok || int(id) != 0 {
+		t.Errorf("id: expected 0, got %v", resp["id"])
+	}
+}
+
+func TestShellyGetConfig_ContainsAllSections(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/Shelly.GetConfig", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, key := range []string{"em:0", "emdata:0", "sys", "wifi"} {
+		if _, ok := resp[key]; !ok {
+			t.Errorf("Shelly.GetConfig missing required section %q", key)
+		}
+	}
+
+	// sys.device.profile must be "triphase" for HA to treat this as a 3-phase device.
+	sys, ok := resp["sys"].(map[string]any)
+	if !ok {
+		t.Fatal("sys is not an object")
+	}
+	dev, ok := sys["device"].(map[string]any)
+	if !ok {
+		t.Fatal("sys.device is not an object")
+	}
+	if profile, _ := dev["profile"].(string); profile != "triphase" {
+		t.Errorf("sys.device.profile: expected \"triphase\", got %q", profile)
+	}
+}
+
 
 func TestShellyGetComponents_ContainsEMData(t *testing.T) {
 	srv := newTestServer(t)

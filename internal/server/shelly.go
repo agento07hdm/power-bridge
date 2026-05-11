@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -234,41 +235,57 @@ func (s *Server) shellyGetStatus(w http.ResponseWriter, r *http.Request) {
 // Shelly.GetConfig
 // --------------------------------------------------------------------------
 
-type shellyConfigResponse struct {
-	EM0 emConfig `json:"em:0"`
-	Sys sysConfig `json:"sys"`
+// emFullConfig is the config block for an EM component, matching the structure
+// returned by a real Shelly Pro 3EM (used in both Shelly.GetConfig and EM.GetConfig).
+type emFullConfig struct {
+	ID                   int            `json:"id"`
+	Name                 *string        `json:"name"`
+	BlinkModeSelector    string         `json:"blink_mode_selector"`
+	PhaseSelector        string         `json:"phase_selector"`
+	MonitorPhaseSequence bool           `json:"monitor_phase_sequence"`
+	Reverse              map[string]any `json:"reverse"`
 }
 
-type emConfig struct {
+// emDataConfig is the config block for an EMData component.
+type emDataConfig struct {
 	ID int `json:"id"`
 }
 
-type sysConfig struct {
-	Device sysDevConfig `json:"device"`
-	Sntp   sntpConfig   `json:"sntp"`
-}
-
-type sysDevConfig struct {
-	Name     string `json:"name"`
-	MAC      string `json:"mac"`
-	FwUpdate bool   `json:"fw_update_en"`
+// shellyConfigResponse is returned by Shelly.GetConfig and mirrors the structure
+// of a real Shelly Pro 3EM to allow Home Assistant / aioshelly to discover all
+// component types (em:0, emdata:0, sys, wifi).
+type shellyConfigResponse struct {
+	EM0     emFullConfig         `json:"em:0"`
+	EMData0 emDataConfig         `json:"emdata:0"`
+	Sys     sysGetConfigResponse `json:"sys"`
+	Wifi    wifiConfig           `json:"wifi"`
 }
 
 type sntpConfig struct {
 	Server string `json:"server"`
 }
 
+func (s *Server) buildEMConfig() emFullConfig {
+	return emFullConfig{
+		ID:                   0,
+		Name:                 nil,
+		BlinkModeSelector:    "active_energy",
+		PhaseSelector:        "all",
+		MonitorPhaseSequence: false,
+		Reverse:              map[string]any{},
+	}
+}
+
+func (s *Server) buildEMDataConfig() emDataConfig {
+	return emDataConfig{ID: 0}
+}
+
 func (s *Server) buildShellyConfig() shellyConfigResponse {
 	return shellyConfigResponse{
-		EM0: emConfig{ID: 0},
-		Sys: sysConfig{
-			Device: sysDevConfig{
-				Name:     s.cfg.Hostname,
-				MAC:      macNoColons(s.cfg.ShellyMAC),
-				FwUpdate: false,
-			},
-			Sntp: sntpConfig{Server: "pool.ntp.org"},
-		},
+		EM0:     s.buildEMConfig(),
+		EMData0: s.buildEMDataConfig(),
+		Sys:     s.buildSysConfig(),
+		Wifi:    s.buildWifiConfig(),
 	}
 }
 
@@ -278,19 +295,41 @@ func (s *Server) shellyGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // --------------------------------------------------------------------------
+// EM.GetConfig
+// --------------------------------------------------------------------------
+
+func (s *Server) emGetConfig(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RPC] HTTP EM.GetConfig called")
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildEMConfig())
+}
+
+// --------------------------------------------------------------------------
+// EMData.GetConfig
+// --------------------------------------------------------------------------
+
+func (s *Server) emDataGetConfig(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RPC] HTTP EMData.GetConfig called")
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildEMDataConfig())
+}
+
+// --------------------------------------------------------------------------
 // EMData.GetStatus
 // --------------------------------------------------------------------------
 
 type emDataStatusResponse struct {
-	ID                  int     `json:"id"`
-	TotalActEnergy      float64 `json:"total_act_energy"`
-	TotalActRetEnergy   float64 `json:"total_act_ret_energy"`
-	ATotalActEnergy     float64 `json:"a_total_act_energy"`
-	ATotalActRetEnergy  float64 `json:"a_total_act_ret_energy"`
-	BTotalActEnergy     float64 `json:"b_total_act_energy"`
-	BTotalActRetEnergy  float64 `json:"b_total_act_ret_energy"`
-	CTotalActEnergy     float64 `json:"c_total_act_energy"`
-	CTotalActRetEnergy  float64 `json:"c_total_act_ret_energy"`
+	ID                 int     `json:"id"`
+	// total_act and total_act_ret are the field names expected by Home Assistant
+	// (aioshelly sensor key: "emdata", sub_key: "total_act" / "total_act_ret").
+	TotalAct           float64 `json:"total_act"`
+	TotalActRet        float64 `json:"total_act_ret"`
+	ATotalActEnergy    float64 `json:"a_total_act_energy"`
+	ATotalActRetEnergy float64 `json:"a_total_act_ret_energy"`
+	BTotalActEnergy    float64 `json:"b_total_act_energy"`
+	BTotalActRetEnergy float64 `json:"b_total_act_ret_energy"`
+	CTotalActEnergy    float64 `json:"c_total_act_energy"`
+	CTotalActRetEnergy float64 `json:"c_total_act_ret_energy"`
 }
 
 // buildEMDataStatus constructs an emDataStatusResponse from the latest poweropti reading.
@@ -308,8 +347,8 @@ func (s *Server) buildEMDataStatus() emDataStatusResponse {
 
 	return emDataStatusResponse{
 		ID:                 0,
-		TotalActEnergy:     round3(consumedWh),
-		TotalActRetEnergy:  round3(deliveredWh),
+		TotalAct:           round3(consumedWh),
+		TotalActRet:        round3(deliveredWh),
 		ATotalActEnergy:    aConsumed,
 		ATotalActRetEnergy: aDelivered,
 		BTotalActEnergy:    bConsumed,
@@ -347,12 +386,12 @@ func (s *Server) buildShellyComponents() componentsResponse {
 			{
 				Key:    "em:0",
 				Status: em,
-				Config: emConfig{ID: 0},
+				Config: s.buildEMConfig(),
 			},
 			{
 				Key:    "emdata:0",
 				Status: emdata,
-				Config: emConfig{ID: 0},
+				Config: s.buildEMDataConfig(),
 			},
 		},
 		Total: 2,
@@ -581,7 +620,9 @@ var implementedMethods = []string{
 	"Wifi.GetStatus",
 	"Wifi.GetConfig",
 	"EM.GetStatus",
+	"EM.GetConfig",
 	"EMData.GetStatus",
+	"EMData.GetConfig",
 }
 
 func buildListMethods() listMethodsResponse {

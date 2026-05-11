@@ -56,6 +56,7 @@ type wsError struct {
 // rpcDispatch maps a Shelly RPC method name to the result it should return.
 // params is the raw JSON params object from the request (may be nil).
 func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error) {
+	log.Printf("[RPC] dispatch: method=%s", method)
 	switch method {
 	case "Shelly.GetDeviceInfo":
 		return s.buildDeviceInfo(), nil
@@ -67,6 +68,8 @@ func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error)
 		return s.buildShellyComponents(), nil
 	case "EM.GetStatus":
 		return s.buildEMStatus(), nil
+	case "EM.GetConfig":
+		return s.buildEMConfig(), nil
 	case "EMData.GetStatus":
 		if len(params) > 0 {
 			var p struct {
@@ -77,6 +80,8 @@ func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error)
 			}
 		}
 		return s.buildEMDataStatus(), nil
+	case "EMData.GetConfig":
+		return s.buildEMDataConfig(), nil
 	case "Sys.GetStatus":
 		return s.buildSysStatus(), nil
 	case "Sys.GetConfig":
@@ -90,6 +95,7 @@ func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error)
 	case "Shelly.ListMethods":
 		return buildListMethods(), nil
 	default:
+		log.Printf("[RPC] unsupported method: %s", method)
 		return nil, fmt.Errorf("method not found: %s", method)
 	}
 }
