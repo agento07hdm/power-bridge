@@ -491,7 +491,7 @@ func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // --------------------------------------------------------------------------
-// WiFi.GetStatus
+// WiFi.GetStatus / Wifi.GetStatus
 // --------------------------------------------------------------------------
 
 func (s *Server) buildWifiStatus() wifiStatus {
@@ -506,6 +506,91 @@ func (s *Server) buildWifiStatus() wifiStatus {
 func (s *Server) wifiGetStatus(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
 	_ = json.NewEncoder(w).Encode(s.buildWifiStatus())
+}
+
+// --------------------------------------------------------------------------
+// Wifi.GetConfig
+// --------------------------------------------------------------------------
+
+type wifiConfig struct {
+	AP   wifiAPConfig  `json:"ap"`
+	Sta  wifiStaConfig `json:"sta"`
+	Sta1 wifiStaConfig `json:"sta1"`
+}
+
+type wifiAPConfig struct {
+	SSID    string `json:"ssid"`
+	IsOpen  bool   `json:"is_open"`
+	Enable  bool   `json:"enable"`
+}
+
+type wifiStaConfig struct {
+	SSID    string  `json:"ssid"`
+	IsOpen  bool    `json:"is_open"`
+	Enable  bool    `json:"enable"`
+	BSSID   *string `json:"bssid"`
+	IPMode  string  `json:"ipv4mode"`
+}
+
+func (s *Server) buildWifiConfig() wifiConfig {
+	return wifiConfig{
+		AP: wifiAPConfig{
+			SSID:   shellyID(s.cfg.ShellyMAC),
+			IsOpen: true,
+			Enable: false,
+		},
+		Sta: wifiStaConfig{
+			SSID:   s.cfg.WIFISSID,
+			IsOpen: false,
+			Enable: true,
+			BSSID:  nil,
+			IPMode: "dhcp",
+		},
+		Sta1: wifiStaConfig{
+			SSID:   "",
+			IsOpen: false,
+			Enable: false,
+			BSSID:  nil,
+			IPMode: "dhcp",
+		},
+	}
+}
+
+func (s *Server) wifiGetConfig(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(s.buildWifiConfig())
+}
+
+// --------------------------------------------------------------------------
+// Shelly.ListMethods
+// --------------------------------------------------------------------------
+
+type listMethodsResponse struct {
+	Methods []string `json:"methods"`
+}
+
+// implementedMethods is the canonical list of RPC methods this bridge implements.
+var implementedMethods = []string{
+	"Shelly.GetDeviceInfo",
+	"Shelly.GetStatus",
+	"Shelly.GetConfig",
+	"Shelly.GetComponents",
+	"Shelly.ListMethods",
+	"Sys.GetStatus",
+	"Sys.GetConfig",
+	"Wifi.GetStatus",
+	"Wifi.GetConfig",
+	"EM.GetStatus",
+	"EMData.GetStatus",
+}
+
+func buildListMethods() listMethodsResponse {
+	return listMethodsResponse{Methods: implementedMethods}
+}
+
+func (s *Server) shellyListMethods(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	_ = json.NewEncoder(w).Encode(buildListMethods())
 }
 
 // --------------------------------------------------------------------------

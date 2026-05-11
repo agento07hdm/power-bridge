@@ -284,11 +284,14 @@ func TestRPCWebSocketDispatch(t *testing.T) {
 		"Shelly.GetStatus",
 		"Shelly.GetConfig",
 		"Shelly.GetComponents",
+		"Shelly.ListMethods",
 		"EM.GetStatus",
 		"EMData.GetStatus",
 		"Sys.GetStatus",
 		"Sys.GetConfig",
 		"WiFi.GetStatus",
+		"Wifi.GetStatus",
+		"Wifi.GetConfig",
 	}
 
 	for i, method := range methods {
@@ -442,6 +445,98 @@ func TestEMGetStatus_PFInValidRange(t *testing.T) {
 		}
 		if pf < 0 || pf > 1 {
 			t.Errorf("%s = %v, want value in [0, 1]", key, pf)
+		}
+	}
+}
+
+func TestShellyListMethods(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/Shelly.ListMethods", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	methods, ok := resp["methods"].([]any)
+	if !ok {
+		t.Fatal("missing or invalid 'methods' field")
+	}
+
+	required := []string{
+		"Shelly.GetDeviceInfo", "Shelly.GetStatus", "Shelly.GetConfig",
+		"Shelly.GetComponents", "Shelly.ListMethods",
+		"Sys.GetStatus", "Sys.GetConfig",
+		"Wifi.GetStatus", "Wifi.GetConfig",
+		"EM.GetStatus", "EMData.GetStatus",
+	}
+	methodSet := make(map[string]bool)
+	for _, m := range methods {
+		if s, ok := m.(string); ok {
+			methodSet[s] = true
+		}
+	}
+	for _, m := range required {
+		if !methodSet[m] {
+			t.Errorf("Shelly.ListMethods missing required method %q", m)
+		}
+	}
+
+	// Legacy alias must not appear in the advertised method list.
+	if methodSet["WiFi.GetStatus"] {
+		t.Error("Shelly.ListMethods must not advertise legacy alias 'WiFi.GetStatus'")
+	}
+}
+
+func TestWifiGetConfig(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/Wifi.GetConfig", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, field := range []string{"ap", "sta", "sta1"} {
+		if _, ok := resp[field]; !ok {
+			t.Errorf("missing required field %q", field)
+		}
+	}
+}
+
+func TestWifiGetStatusOfficialNamespace(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/Wifi.GetStatus", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, field := range []string{"ssid", "rssi", "sta_ip", "status"} {
+		if _, ok := resp[field]; !ok {
+			t.Errorf("missing required field %q", field)
 		}
 	}
 }

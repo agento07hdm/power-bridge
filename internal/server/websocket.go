@@ -81,8 +81,14 @@ func (s *Server) rpcDispatch(method string, params json.RawMessage) (any, error)
 		return s.buildSysStatus(), nil
 	case "Sys.GetConfig":
 		return s.buildSysConfig(), nil
-	case "WiFi.GetStatus":
+	case "WiFi.GetStatus": // legacy alias
 		return s.buildWifiStatus(), nil
+	case "Wifi.GetStatus":
+		return s.buildWifiStatus(), nil
+	case "Wifi.GetConfig":
+		return s.buildWifiConfig(), nil
+	case "Shelly.ListMethods":
+		return buildListMethods(), nil
 	default:
 		return nil, fmt.Errorf("method not found: %s", method)
 	}
