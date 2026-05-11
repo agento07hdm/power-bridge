@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// apModeIP is the static IP address used in Access Point mode.
+const apModeIP = "192.168.4.1"
+
+// apSSID is the Wi-Fi network name broadcast in AP mode.
+const apSSID = "power-bridge"
+
 var startTime = time.Now()
 
 func uptimeSeconds() int64 {
@@ -16,6 +22,22 @@ func uptimeSeconds() int64 {
 
 // serviceName is the systemd unit name used by restart/stop operations.
 const serviceName = "power-bridge"
+
+// isAPMode returns true when wlan0 has the static AP IP, meaning the bridge is
+// in Access Point / setup mode rather than connected to a home network.
+func isAPMode() bool {
+	return getLocalIP() == apModeIP
+}
+
+// getInterfaceMAC returns the uppercase, colon-separated hardware MAC address
+// of the named network interface. Returns an empty string on error.
+func getInterfaceMAC(iface string) string {
+	i, err := net.InterfaceByName(iface)
+	if err != nil || len(i.HardwareAddr) == 0 {
+		return ""
+	}
+	return strings.ToUpper(i.HardwareAddr.String())
+}
 
 // getLocalIP returns the first non-loopback IPv4 address found on the host,
 // falling back to the hostname if none is found.

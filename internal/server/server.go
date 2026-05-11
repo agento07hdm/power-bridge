@@ -136,6 +136,16 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/logs", s.apiLogs)
 	mux.HandleFunc("/api/restart", s.apiRestart)
 	mux.HandleFunc("/api/test/poweropti", s.apiTestPoweropti)
+	mux.HandleFunc("/api/wifi/forget", s.apiWifiForget)
+	mux.HandleFunc("/api/update/check", s.apiUpdateCheck)
+	mux.HandleFunc("/api/update/apply", s.apiUpdateApply)
+
+	// Captive portal detection – redirects to /setup when in AP mode so that
+	// iOS, Android and Windows automatically open the configuration page.
+	mux.HandleFunc("/generate_204", s.captivePortal204)
+	mux.HandleFunc("/hotspot-detect.html", s.captivePortalHotspot)
+	mux.HandleFunc("/ncsi.txt", s.captivePortalNCSI)
+	mux.HandleFunc("/connecttest.txt", s.captivePortalConnectTest)
 
 	// Root – redirect based on configuration state
 	mux.HandleFunc("/", s.rootHandler)

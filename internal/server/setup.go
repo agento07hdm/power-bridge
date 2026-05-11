@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -122,6 +123,12 @@ func (s *Server) setupSave(w http.ResponseWriter, r *http.Request) {
 
 // applyWifiConfig writes /etc/wpa_supplicant/wpa_supplicant.conf and triggers
 // wpa_supplicant to reconnect. Errors are logged but not fatal.
+//
+// Instead of directly restarting power-bridge (which would kill the running
+// process), a detached background script is written and launched. The script
+// waits 35 seconds for the WiFi association to succeed:
+//   - If connected: restart power-bridge to start the data poller.
+//   - If not connected: revert to AP mode, then restart power-bridge.
 func applyWifiConfig(ssid, password string) {
 	wpaConf := fmt.Sprintf(`country=DE
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
@@ -138,11 +145,120 @@ network={
 		log.Printf("wpa_supplicant write failed: %v", err)
 		return
 	}
-	// Restart networking; ignore errors on non-Pi systems.
+	// Switch from AP mode to client mode.
 	_ = exec.Command("systemctl", "restart", "wpa_supplicant@wlan0").Run()
 	_ = exec.Command("systemctl", "stop", "hostapd").Run()
 	_ = exec.Command("systemctl", "stop", "dnsmasq").Run()
-	_ = exec.Command("systemctl", "restart", serviceName).Run()
+
+	// Write and launch a detached check script that restarts power-bridge after
+	// confirming (or giving up on) the WiFi connection.
+	checkScript := `#!/bin/sh
+# Wait for wpa_supplicant to associate.
+sleep 35
+IP=$(ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1 | head -1)
+if [ -z "$IP" ] || [ "$IP" = "192.168.4.1" ]; then
+    logger -t power-bridge "WiFi connection timed out after 35s – reverting to AP mode"
+    systemctl stop wpa_supplicant@wlan0 2>/dev/null || true
+    systemctl stop wpa_supplicant 2>/dev/null || true
+    systemctl start hostapd 2>/dev/null || true
+    systemctl start dnsmasq 2>/dev/null || true
+else
+    logger -t power-bridge "WiFi connected: $IP"
+fi
+systemctl restart power-bridge
+`
+	scriptPath := "/etc/power-bridge/wifi-check.sh"
+	if err := os.WriteFile(scriptPath, []byte(checkScript), 0o755); err != nil {
+		log.Printf("wifi-check script write failed: %v – falling back to direct restart", err)
+		_ = exec.Command("systemctl", "restart", serviceName).Run()
+		return
+	}
+	cmd := exec.Command("setsid", "/bin/sh", scriptPath)
+	if err := cmd.Start(); err != nil {
+		log.Printf("wifi-check script launch failed: %v – falling back to direct restart", err)
+		_ = exec.Command("systemctl", "restart", serviceName).Run()
+	}
+}
+
+// enableAPMode stops wpa_supplicant and starts hostapd + dnsmasq so that
+// wlan0 operates as an Access Point. The static IP 192.168.4.1 is maintained
+// by dhcpcd.conf which was configured at install time.
+func enableAPMode() {
+	log.Println("Enabling AP mode…")
+	_ = exec.Command("systemctl", "stop", "wpa_supplicant@wlan0").Run()
+	_ = exec.Command("systemctl", "stop", "wpa_supplicant").Run()
+	time.Sleep(500 * time.Millisecond)
+	_ = exec.Command("systemctl", "start", "hostapd").Run()
+	_ = exec.Command("systemctl", "start", "dnsmasq").Run()
+	log.Println("AP mode enabled")
+}
+
+// apiWifiForget clears the stored WiFi credentials and switches to AP mode so
+// the user can reconfigure the network via the setup page.
+func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	jsonHeader(w)
+	s.cfg.WIFISSID = ""
+	s.cfg.WIFIPassword = ""
+	if err := config.Save(s.configPath, s.cfg); err != nil {
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
+		return
+	}
+	s.logf("WiFi credentials cleared, switching to AP mode")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status": "ap_mode_enabled",
+		"ssid":   apSSID,
+		"url":    "http://" + apModeIP,
+	})
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		enableAPMode()
+	}()
+}
+
+// --------------------------------------------------------------------------
+// Captive portal detection endpoints
+//
+// When the bridge is in AP mode (192.168.4.1), all captive portal probes from
+// iOS, Android, and Windows are redirected to /setup so the phone automatically
+// shows the configuration page.  In normal (client) mode the expected responses
+// are returned so devices don't show a "no internet" warning.
+// --------------------------------------------------------------------------
+
+func (s *Server) captivePortal204(w http.ResponseWriter, r *http.Request) {
+	if isAPMode() {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) captivePortalHotspot(w http.ResponseWriter, r *http.Request) {
+	if isAPMode() {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprintln(w, "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>\nSuccess\n</BODY></HTML>")
+}
+
+func (s *Server) captivePortalNCSI(w http.ResponseWriter, r *http.Request) {
+	if isAPMode() {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+	fmt.Fprintln(w, "Microsoft NCSI")
+}
+
+func (s *Server) captivePortalConnectTest(w http.ResponseWriter, r *http.Request) {
+	if isAPMode() {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+	fmt.Fprintln(w, "Microsoft Connect Test")
 }
 
 func writeFileRoot(path, content string) error {

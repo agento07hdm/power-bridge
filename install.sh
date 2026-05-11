@@ -11,7 +11,7 @@ BINARY_DEST="/usr/local/bin/power-bridge"
 SHARE_DIR="/usr/local/share/power-bridge"
 CONFIG_DIR="/etc/power-bridge"
 AVAHI_SVC_DIR="/etc/avahi/services"
-AP_SSID="ShellyMeter-Setup"
+AP_SSID="power-bridge"
 AP_IP="192.168.4.1"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -250,6 +250,14 @@ EOF
     ok "Config reset to defaults (configured: false)"
 fi
 echo "stable" > /etc/power-bridge/update-channel 2>/dev/null || true
+
+step "Clearing wpa_supplicant WiFi credentials…"
+cat > /etc/wpa_supplicant/wpa_supplicant.conf << 'EOF'
+country=DE
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+EOF
+ok "wpa_supplicant.conf cleared (no stored networks)"
 
 step "Removing SSH host keys…"
 rm -f /etc/ssh/ssh_host_*
