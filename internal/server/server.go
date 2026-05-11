@@ -110,6 +110,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/rpc/EMData.GetStatus", s.shellyEMDataGetStatus)
 	mux.HandleFunc("/rpc/Sys.GetStatus", s.sysGetStatus)
 	mux.HandleFunc("/rpc/Sys.GetConfig", s.sysGetConfig)
+	mux.HandleFunc("/rpc/WiFi.GetStatus", s.wifiGetStatus)
 
 	// Shelly Gen-2 RPC over WebSocket (used by Shelly apps and some home automation systems)
 	mux.HandleFunc("/rpc", s.rpcWebSocket)
