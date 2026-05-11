@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -25,6 +26,12 @@ import (
 var wsUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
+
+// wsOutboundBufferSize is the number of outbound frames buffered per WebSocket
+// connection. It must be large enough to absorb a burst of NotifyStatus pushes
+// without blocking, but small enough to detect truly stuck clients quickly.
+// 32 frames ≈ ~10 seconds of bursts at the default 3-second poll interval.
+const wsOutboundBufferSize = 32
 
 type wsRequest struct {
 	ID     int64           `json:"id"`
@@ -90,7 +97,7 @@ func (s *Server) rpcWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Each connection gets a buffered channel for outbound frames.
 	// All writes go through this channel to guarantee single-writer semantics.
-	sendCh := make(chan []byte, 32)
+	sendCh := make(chan []byte, wsOutboundBufferSize)
 	s.hub.register(sendCh)
 	defer func() {
 		s.hub.unregister(sendCh)
@@ -143,10 +150,14 @@ func (s *Server) rpcWebSocket(w http.ResponseWriter, r *http.Request) {
 			log.Printf("ws marshal error: %v", err)
 			continue
 		}
+		// For RPC responses, block briefly rather than dropping the reply.
+		// A healthy client always reads; a stuck one will be caught by the
+		// write goroutine's write error which will close the connection.
 		select {
 		case sendCh <- data:
-		default:
-			log.Printf("ws send buffer full, dropping RPC response for method %s", req.Method)
+		case <-time.After(5 * time.Second):
+			log.Printf("ws send timeout for method %s, closing connection", req.Method)
+			return
 		}
 	}
 }

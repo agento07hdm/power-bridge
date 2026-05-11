@@ -51,6 +51,7 @@ func main() {
 
 	var poller *poweropti.Client
 	var cancelPoller context.CancelFunc
+	var cancelBroadcaster context.CancelFunc
 
 	if cfg.Configured {
 		log.Printf("configured: poweropti=%s hostname=%s", cfg.PoweroptiIP, cfg.Hostname)
@@ -65,9 +66,9 @@ func main() {
 	srv := server.New(cfg, *configFile, poller)
 
 	if cfg.Configured && poller != nil {
-		pollCtx, pollCancel := context.WithCancel(context.Background())
-		defer pollCancel()
-		go srv.RunNotifyBroadcaster(pollCtx)
+		bctx, bcancel := context.WithCancel(context.Background())
+		cancelBroadcaster = bcancel
+		go srv.RunNotifyBroadcaster(bctx)
 	}
 
 	go func() {
@@ -95,6 +96,9 @@ func main() {
 	<-quit
 
 	log.Println("shutting down…")
+	if cancelBroadcaster != nil {
+		cancelBroadcaster()
+	}
 	if cancelPoller != nil {
 		cancelPoller()
 	}
