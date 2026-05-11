@@ -73,16 +73,26 @@ type apiResponse struct {
 
 // Client polls the poweropti and exposes the latest Reading.
 type Client struct {
-	cfg     *config.Config
-	mu      sync.RWMutex
-	latest  Reading
-	errors  int    // consecutive error count
-	lastErr string // last poll error message
+	cfg      *config.Config
+	mu       sync.RWMutex
+	latest   Reading
+	errors   int    // consecutive error count
+	lastErr  string // last poll error message
+	notifyCh chan struct{}
 }
 
 // NewClient creates a Client from the given config.
 func NewClient(cfg *config.Config) *Client {
-	return &Client{cfg: cfg}
+	return &Client{
+		cfg:      cfg,
+		notifyCh: make(chan struct{}, 1),
+	}
+}
+
+// Notify returns a channel that receives a signal after each successful poll.
+// The channel is buffered (size 1); if the consumer is slow, signals are coalesced.
+func (c *Client) Notify() <-chan struct{} {
+	return c.notifyCh
 }
 
 // Run starts the polling loop and blocks until ctx is cancelled.
@@ -152,6 +162,11 @@ func (c *Client) poll() {
 	c.errors = 0
 	c.lastErr = ""
 	c.latest = *r
+	// Signal listeners (non-blocking, coalesced).
+	select {
+	case c.notifyCh <- struct{}{}:
+	default:
+	}
 }
 
 func (c *Client) fetch() (*Reading, error) {

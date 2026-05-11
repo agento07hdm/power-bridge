@@ -16,6 +16,10 @@ import (
 //   client → server: {"id":1,"src":"user_1","method":"Shelly.GetDeviceInfo","params":{}}
 //   server → client: {"id":1,"src":"<device-id>","dst":"user_1","result":{...}}
 //              or:   {"id":1,"src":"<device-id>","dst":"user_1","error":{"code":-105,"message":"Method not found"}}
+//
+// Additionally, the server pushes NotifyStatus frames whenever a new
+// poweropti reading is available (via RunNotifyBroadcaster):
+//   server → client: {"src":"<device-id>","method":"NotifyStatus","params":{"ts":1234.5,"em:0":{...}}}
 // --------------------------------------------------------------------------
 
 var wsUpgrader = websocket.Upgrader{
@@ -30,10 +34,10 @@ type wsRequest struct {
 }
 
 type wsResponse struct {
-	ID     int64  `json:"id"`
-	Src    string `json:"src"`
-	Dst    string `json:"dst"`
-	Result any    `json:"result,omitempty"`
+	ID     int64    `json:"id"`
+	Src    string   `json:"src"`
+	Dst    string   `json:"dst"`
+	Result any      `json:"result,omitempty"`
 	Error  *wsError `json:"error,omitempty"`
 }
 
@@ -81,10 +85,31 @@ func (s *Server) rpcWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ws upgrade error: %v", err)
 		return
 	}
-	defer conn.Close()
 
 	deviceSrc := shellyID(s.cfg.ShellyMAC)
 
+	// Each connection gets a buffered channel for outbound frames.
+	// All writes go through this channel to guarantee single-writer semantics.
+	sendCh := make(chan []byte, 32)
+	s.hub.register(sendCh)
+	defer func() {
+		s.hub.unregister(sendCh)
+		close(sendCh)
+		conn.Close()
+	}()
+
+	// Writer goroutine – the only goroutine allowed to call conn.Write*.
+	go func() {
+		for data := range sendCh {
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				// Trigger read-loop exit by closing the underlying conn.
+				conn.Close()
+				return
+			}
+		}
+	}()
+
+	// Reader loop – handles incoming RPC requests.
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -113,9 +138,15 @@ func (s *Server) rpcWebSocket(w http.ResponseWriter, r *http.Request) {
 			resp.Result = result
 		}
 
-		if err := conn.WriteJSON(resp); err != nil {
-			log.Printf("ws write error: %v", err)
-			return
+		data, err := json.Marshal(resp)
+		if err != nil {
+			log.Printf("ws marshal error: %v", err)
+			continue
+		}
+		select {
+		case sendCh <- data:
+		default:
+			log.Printf("ws send buffer full, dropping RPC response for method %s", req.Method)
 		}
 	}
 }

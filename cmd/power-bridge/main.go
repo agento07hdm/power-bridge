@@ -64,6 +64,12 @@ func main() {
 
 	srv := server.New(cfg, *configFile, poller)
 
+	if cfg.Configured && poller != nil {
+		pollCtx, pollCancel := context.WithCancel(context.Background())
+		defer pollCancel()
+		go srv.RunNotifyBroadcaster(pollCtx)
+	}
+
 	go func() {
 		log.Printf("listening on %s", cfg.ListenAddr)
 		if err := srv.Listen(cfg.ListenAddr); err != nil {
