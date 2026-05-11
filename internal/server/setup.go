@@ -181,6 +181,7 @@ func writeAvahiService(cfg *config.Config) {
     <port>80</port>
     <txt-record>gen=2</txt-record>
     <txt-record>app=Pro3EM</txt-record>
+    <txt-record>model=SPEM-003CEBEU</txt-record>
     <txt-record>ver=2.2.1</txt-record>
     <txt-record>id=%s</txt-record>
     <txt-record>mac=%s</txt-record>

@@ -112,6 +112,9 @@ func TestShellyGetStatus_ContainsEM0(t *testing.T) {
 	if _, ok := resp["em:0"]; !ok {
 		t.Error("Shelly.GetStatus must contain 'em:0' key")
 	}
+	if _, ok := resp["emdata:0"]; !ok {
+		t.Error("Shelly.GetStatus must contain 'emdata:0' key")
+	}
 	if _, ok := resp["sys"]; !ok {
 		t.Error("Shelly.GetStatus must contain 'sys' key")
 	}
@@ -387,5 +390,68 @@ func TestRPCWebSocketUnknownMethod(t *testing.T) {
 	}
 	if errObj["code"] != float64(-105) {
 		t.Errorf("error code: expected -105, got %v", errObj["code"])
+	}
+}
+
+func TestEMGetStatus_PFInValidRange(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/rpc/EM.GetStatus?id=0", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	for _, key := range []string{"a_pf", "b_pf", "c_pf"} {
+		pf, ok := resp[key].(float64)
+		if !ok {
+			t.Errorf("missing or non-numeric field %q", key)
+			continue
+		}
+		if pf < 0 || pf > 1 {
+			t.Errorf("%s = %v, want value in [0, 1]", key, pf)
+		}
+	}
+}
+
+func TestRPCWebSocket_NotifyStatusPush(t *testing.T) {
+	srv := newTestServer(t)
+	ts := httptest.NewServer(srv)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/rpc"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Manually trigger a broadcast as if a new reading had arrived.
+	data, err := srv.ExportBuildNotifyStatus()
+	if err != nil {
+		t.Fatalf("buildNotifyStatus: %v", err)
+	}
+	srv.ExportHubBroadcast(data)
+
+	var msg map[string]any
+	if err := conn.ReadJSON(&msg); err != nil {
+		t.Fatalf("read NotifyStatus: %v", err)
+	}
+
+	if msg["method"] != "NotifyStatus" {
+		t.Errorf("method: expected 'NotifyStatus', got %v", msg["method"])
+	}
+	params, ok := msg["params"].(map[string]any)
+	if !ok {
+		t.Fatal("params missing or wrong type")
+	}
+	if _, ok := params["ts"]; !ok {
+		t.Error("params.ts missing")
+	}
+	if _, ok := params["em:0"]; !ok {
+		t.Error("params['em:0'] missing")
 	}
 }

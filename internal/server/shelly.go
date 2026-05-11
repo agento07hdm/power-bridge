@@ -185,9 +185,10 @@ func (s *Server) buildEMStatus() emStatusResponse {
 // --------------------------------------------------------------------------
 
 type shellyStatusResponse struct {
-	EM0      emStatusResponse `json:"em:0"`
-	Sys      sysStatus        `json:"sys"`
-	Wifi     wifiStatus       `json:"wifi"`
+	EM0      emStatusResponse     `json:"em:0"`
+	EMData0  emDataStatusResponse `json:"emdata:0"`
+	Sys      sysStatus            `json:"sys"`
+	Wifi     wifiStatus           `json:"wifi"`
 }
 
 type sysStatus struct {
@@ -207,7 +208,8 @@ type wifiStatus struct {
 func (s *Server) buildShellyStatus() shellyStatusResponse {
 	ram := getRealRAM()
 	return shellyStatusResponse{
-		EM0: s.buildEMStatus(),
+		EM0:     s.buildEMStatus(),
+		EMData0: s.buildEMDataStatus(),
 		Sys: sysStatus{
 			Uptime:      uptimeSeconds(),
 			MemFree:     ram.Free,
@@ -489,9 +491,34 @@ func (s *Server) sysGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // --------------------------------------------------------------------------
-// helpers
+// NotifyStatus  (WebSocket push event)
 // --------------------------------------------------------------------------
 
+// wsNotifyStatus is the push message sent to WebSocket clients on each new
+// poweropti reading. It follows the Shelly Gen-2 notification format.
+type wsNotifyStatus struct {
+	Src    string         `json:"src"`
+	Method string         `json:"method"`
+	Params map[string]any `json:"params"`
+}
+
+// buildNotifyStatus returns a serialised NotifyStatus frame for broadcasting.
+func (s *Server) buildNotifyStatus() ([]byte, error) {
+	em := s.buildEMStatus()
+	msg := wsNotifyStatus{
+		Src:    shellyID(s.cfg.ShellyMAC),
+		Method: "NotifyStatus",
+		Params: map[string]any{
+			"ts":   float64(time.Now().UnixMilli()) / 1000.0,
+			"em:0": em,
+		},
+	}
+	return json.Marshal(msg)
+}
+
+// --------------------------------------------------------------------------
+// helpers
+// --------------------------------------------------------------------------
 func absF(f float64) float64 {
 	if f < 0 {
 		return -f
@@ -503,10 +530,11 @@ func round3(f float64) float64 {
 	return float64(int64(f*1000+0.5)) / 1000
 }
 
-func pfFromSign(p float64) float64 {
-	if p < 0 {
-		return -1.0
-	}
+// pfFromSign returns a power factor value in the range [0.0, 1.0].
+// Since the poweropti only exposes active power (no reactive component),
+// we approximate pf as 1.0 for consumption and 1.0 for feed-in.
+// Home Assistant and Shelly expect a non-negative pf in [0, 1].
+func pfFromSign(_ float64) float64 {
 	return 1.0
 }
 

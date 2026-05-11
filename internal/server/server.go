@@ -33,6 +33,7 @@ type Server struct {
 	httpSrv    *http.Server
 	mux        *http.ServeMux
 	logBuffer  *ringLog
+	hub        *wsHub
 }
 
 // New creates a Server. poller may be nil if the device is not yet configured.
@@ -42,6 +43,7 @@ func New(cfg *config.Config, configPath string, poller *poweropti.Client) *Serve
 		configPath: configPath,
 		poller:     poller,
 		logBuffer:  newRingLog(200),
+		hub:        newWSHub(),
 	}
 
 	// Parse embedded templates.
@@ -148,6 +150,31 @@ func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
 // logf records a message to the in-memory ring buffer.
 func (s *Server) logf(format string, a ...any) {
 	s.logBuffer.printf(format, a...)
+}
+
+// RunNotifyBroadcaster watches the poller for new readings and pushes
+// NotifyStatus events to all connected WebSocket clients.
+// It blocks until ctx is cancelled and should be run in a goroutine.
+// If no poller is configured the function returns immediately.
+func (s *Server) RunNotifyBroadcaster(ctx context.Context) {
+	if s.poller == nil {
+		return
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.poller.Notify():
+			if s.hub.len() == 0 {
+				continue
+			}
+			data, err := s.buildNotifyStatus()
+			if err != nil {
+				continue
+			}
+			s.hub.broadcast(data)
+		}
+	}
 }
 
 // jsonHeader sets Content-Type to application/json.
