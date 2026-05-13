@@ -145,10 +145,15 @@ network={
 		log.Printf("wpa_supplicant write failed: %v", err)
 		return
 	}
-	// Switch from AP mode to client mode.
-	_ = exec.Command("systemctl", "restart", "wpa_supplicant@wlan0").Run()
+	// Stop any running wpa_supplicant and AP services cleanly, then start fresh
+	// with the new config. Using stop + start (not restart) ensures the daemon
+	// actually re-reads the new credentials rather than keeping a stale state.
+	_ = exec.Command("systemctl", "stop", "wpa_supplicant@wlan0").Run()
+	_ = exec.Command("systemctl", "stop", "wpa_supplicant").Run()
 	_ = exec.Command("systemctl", "stop", "hostapd").Run()
 	_ = exec.Command("systemctl", "stop", "dnsmasq").Run()
+	time.Sleep(500 * time.Millisecond)
+	_ = exec.Command("systemctl", "start", "wpa_supplicant@wlan0").Run()
 
 	// Write and launch a detached check script that restarts power-bridge after
 	// confirming (or giving up on) the WiFi connection.
@@ -180,10 +185,15 @@ systemctl restart power-bridge
 	}
 }
 
+// apModeRestartDelaySecs is how long to wait after enabling AP mode before
+// restarting the service, giving hostapd/dnsmasq time to become active.
+const apModeRestartDelaySecs = 3
+
 // wifiConnectionTimeoutSecs is the time in seconds the bridge waits after
 // attempting a WiFi connection before deciding it has failed and reverting
 // to AP mode.
 const wifiConnectionTimeoutSecs = 35
+
 // wlan0 operates as an Access Point. The static IP 192.168.4.1 is maintained
 // by dhcpcd.conf which was configured at install time.
 func enableAPMode() {
@@ -210,7 +220,14 @@ func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
 		return
 	}
-	s.logf("WiFi credentials cleared, switching to AP mode")
+	// Write an empty wpa_supplicant.conf so the OS cannot reconnect to the old
+	// network after the service restarts. The country code DE matches the value
+	// used in applyWifiConfig; adjust at install time if deploying outside Germany.
+	emptyWpaConf := "country=DE\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n"
+	if err := writeFileRoot("/etc/wpa_supplicant/wpa_supplicant.conf", emptyWpaConf); err != nil {
+		s.logf("wpa_supplicant clear failed: %v", err)
+	}
+	s.logf("WiFi credentials cleared – switching to AP mode")
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "ap_mode_enabled",
 		"ssid":   apSSID,
@@ -219,6 +236,11 @@ func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		enableAPMode()
+		// Restart the service after AP mode is active so the process starts
+		// cleanly in setup-mode context.
+		time.Sleep(time.Duration(apModeRestartDelaySecs) * time.Second)
+		s.logf("Restarting service after AP mode switch")
+		_ = exec.Command("systemctl", "restart", serviceName).Run()
 	}()
 }
 

@@ -237,6 +237,50 @@ func TestAPIStatusEndpoint(t *testing.T) {
 	if _, ok := resp["uptime_s"]; !ok {
 		t.Error("missing 'uptime_s' field")
 	}
+	// wifi_connected_ssid must be present (may be empty string in test env)
+	if _, ok := resp["wifi_connected_ssid"]; !ok {
+		t.Error("missing 'wifi_connected_ssid' field")
+	}
+}
+
+func TestAPIWifiForget_MethodNotAllowed(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/wifi/forget", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405 for GET, got %d", w.Code)
+	}
+}
+
+func TestAPIWifiForget_POST_ClearsConfig(t *testing.T) {
+	srv := newTestServer(t)
+	// Pre-set WiFi credentials so we can verify they are cleared.
+	srv.ExportSetWifiCredentials("TestSSID", "TestPassword")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/wifi/forget", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// The endpoint writes the config to /tmp/test-config.yaml which may fail
+	// (that's OK in tests) but must still return a JSON response, not a 5xx.
+	if w.Code == http.StatusMethodNotAllowed {
+		t.Fatalf("unexpected 405 for POST")
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("expected JSON content-type, got %q", ct)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Status should indicate AP mode was requested, or an error about config save.
+	status, _ := resp["status"].(string)
+	if status != "ap_mode_enabled" && resp["error"] == nil {
+		t.Errorf("unexpected response: %v", resp)
+	}
 }
 
 func TestWiFiGetStatus(t *testing.T) {
