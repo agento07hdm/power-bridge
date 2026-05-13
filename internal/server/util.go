@@ -3,6 +3,7 @@ package server
 import (
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -129,6 +130,16 @@ func getRealRAM() memInfo {
 		}
 	}
 	return info
+}
+
+// getConnectedSSID returns the SSID of the currently associated WiFi network by
+// querying iwgetid. Returns an empty string when not connected or on error.
+func getConnectedSSID() string {
+	out, err := exec.Command("iwgetid", "-r", "wlan0").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // lookupMACFromARP returns the MAC address for a given IP from the kernel ARP table.

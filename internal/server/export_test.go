@@ -12,3 +12,9 @@ func (s *Server) ExportBuildNotifyStatus() ([]byte, error) {
 func (s *Server) ExportHubBroadcast(data []byte) {
 	s.hub.broadcast(data)
 }
+
+// ExportSetWifiCredentials sets the in-memory WiFi credentials for testing.
+func (s *Server) ExportSetWifiCredentials(ssid, password string) {
+	s.cfg.WIFISSID = ssid
+	s.cfg.WIFIPassword = password
+}

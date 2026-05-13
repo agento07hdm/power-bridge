@@ -235,7 +235,8 @@ var T={de:{
   update_started:'Update wird eingespielt\u2026',
   chart_title:'\u{1F4C8} Leistungswertanalyse',chart_close:'\u2715 Schlie\u00dfen',
   forget_confirm:'WLAN-Zugangsdaten wirklich l\u00f6schen? Die power-bridge wechselt in den AP-Modus.',
-  forget_ap_info:'Verbinde dich jetzt mit dem WLAN "power-bridge" und \u00f6ffne http://192.168.4.1',
+  forget_ap_info:'AP-Modus aktiv. Verbinde dich jetzt mit dem WLAN <strong>"power-bridge"</strong> und \u00f6ffne <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
+  wifi_connecting:'Verbindet\u2026',
   setup_done:'Konfiguration gespeichert. Verbinde mit WLAN\u2026',
   phase_equal:'Gleich (L1=L2=L3)',phase_l1:'Alles auf L1',
   restart_confirm:'Service wirklich neu starten?',
@@ -260,7 +261,8 @@ var T={de:{
   update_started:'Update in progress\u2026',
   chart_title:'\u{1F4C8} Power analysis',chart_close:'\u2715 Close',
   forget_confirm:'Really delete WiFi credentials? The power-bridge will switch to AP mode.',
-  forget_ap_info:'Connect to WiFi "power-bridge" and open http://192.168.4.1',
+  forget_ap_info:'AP mode active. Connect to WiFi <strong>"power-bridge"</strong> and open <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
+  wifi_connecting:'Connecting\u2026',
   setup_done:'Configuration saved. Connecting to WiFi\u2026',
   phase_equal:'Equal (L1=L2=L3)',phase_l1:'All on L1',
   restart_confirm:'Really restart the service?',
@@ -342,18 +344,33 @@ var scanAutoTriggered=false;
     document.getElementById('po-age').textContent=d.last_read_at?t('last_update')+': '+ageStr(d.last_read_at):'';
     document.getElementById('br-ip').textContent=d.bridge_ip||'\u2013';
     document.getElementById('br-mac').textContent=d.bridge_mac||'\u2013';
-    var connected=!d.is_ap_mode&&!!d.wifi_ssid;
+    var connectedSSID=d.wifi_connected_ssid||'';
+    var connected=!d.is_ap_mode&&!!connectedSSID;
     setWifiIcon(d.wifi_rssi,connected);
     var wLabel=document.getElementById('wifi-label');
     if(d.is_ap_mode)wLabel.textContent=t('wifi_ap');
-    else if(d.wifi_ssid)wLabel.textContent=d.wifi_ssid;
+    else if(connectedSSID)wLabel.textContent=connectedSSID;
+    else if(d.wifi_ssid)wLabel.textContent=t('wifi_connecting');
     else wLabel.textContent=t('wifi_no_ssid');
     document.getElementById('br-rssi').textContent=d.wifi_rssi+' dBm';
     document.getElementById('sh-id').textContent=d.shelly_id||'\u2013';
     document.getElementById('sh-mac').textContent=d.shelly_mac||'\u2013';
     document.getElementById('sh-model').textContent=d.shelly_model||'\u2013';
     document.getElementById('sh-phase').textContent=phaseLabel(d.phase_mode);
-    document.getElementById('wifi-current').textContent=d.is_ap_mode?t('wifi_ap'):(d.wifi_ssid||t('wifi_no_ssid'));
+    // Show actual connected SSID in the WiFi config section; if still connecting
+    // (configured SSID set but not yet associated) indicate the transition.
+    var wifiCurrent=document.getElementById('wifi-current');
+    if(d.is_ap_mode){wifiCurrent.textContent=t('wifi_ap');}
+    else if(connectedSSID){
+      wifiCurrent.textContent=connectedSSID;
+      wifiCurrent.style.color='';
+    } else if(d.wifi_ssid){
+      wifiCurrent.textContent=t('wifi_connecting')+': '+d.wifi_ssid;
+      wifiCurrent.style.color='#fcd34d';
+    } else {
+      wifiCurrent.textContent=t('wifi_no_ssid');
+      wifiCurrent.style.color='';
+    }
     if(d.is_ap_mode&&!scanAutoTriggered){
       scanAutoTriggered=true;
       document.getElementById('scan-details').open=true;
@@ -387,11 +404,26 @@ function scanWifiStatus(){
 
 function wifiForget(){
   if(!confirm(t('forget_confirm')))return;
-  fetch('/api/wifi/forget',{method:'POST'}).then(function(r){return r.json();}).then(function(){
+  var btn=document.querySelector('[onclick="wifiForget()"]');
+  if(btn)btn.disabled=true;
+  fetch('/api/wifi/forget',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
     var info=document.getElementById('forget-info');
-    info.textContent=t('forget_ap_info');
+    if(d.status==='ap_mode_enabled'||d.status==='ok'){
+      info.innerHTML=t('forget_ap_info');
+      info.style.display='block';
+    } else if(d.error){
+      info.style.background='#4a0e0e';info.style.color='#f87171';
+      info.textContent='Fehler: '+d.error;
+      info.style.display='block';
+      if(btn)btn.disabled=false;
+    }
+  }).catch(function(e){
+    var info=document.getElementById('forget-info');
+    info.style.background='#4a0e0e';info.style.color='#f87171';
+    info.textContent='Anfrage fehlgeschlagen: '+e;
     info.style.display='block';
-  }).catch(function(){alert('Fehler beim Vergessen des WLANs');});
+    if(btn)btn.disabled=false;
+  });
 }
 
 function restartService(){
