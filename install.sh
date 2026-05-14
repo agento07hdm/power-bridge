@@ -23,14 +23,14 @@ error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || error "Please run as root: sudo bash install.sh"
 
 # ── 1. Determine latest release version ──────────────────────────────────────
-echo -e "\n${GREEN}[1/11]${NC} Fetching latest release version…"
+echo -e "\n${GREEN}[1/12]${NC} Fetching latest release version…"
 VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
 [ -n "$VERSION" ] || error "Could not determine latest release version from GitHub API"
 ok "Latest version: $VERSION"
 
 # ── 2. Download and install binary ────────────────────────────────────────────
-echo -e "\n${GREEN}[2/11]${NC} Downloading binary power-bridge-${VERSION}-linux-armv6…"
+echo -e "\n${GREEN}[2/12]${NC} Downloading binary power-bridge-${VERSION}-linux-armv6…"
 BINARY_URL="https://github.com/${REPO}/releases/download/${VERSION}/power-bridge-${VERSION}-linux-armv6"
 curl -fsSL "$BINARY_URL" -o "$BINARY_DEST"
 chmod 755 "$BINARY_DEST"
@@ -44,7 +44,7 @@ echo "$VERSION" > "$CONFIG_DIR/VERSION"
 ok "Version $VERSION recorded in $CONFIG_DIR/VERSION"
 
 # ── 3. System packages ────────────────────────────────────────────────────────
-echo -e "\n${GREEN}[3/11]${NC} Installing required packages…"
+echo -e "\n${GREEN}[3/12]${NC} Installing required packages…"
 apt-get update -qq
 apt-get install -y --no-install-recommends \
     hostapd \
@@ -56,7 +56,7 @@ systemctl unmask dnsmasq 2>/dev/null || true
 ok "Packages installed"
 
 # ── 4. Config directory & default config ─────────────────────────────────────
-echo -e "\n${GREEN}[4/11]${NC} Setting up config directory…"
+echo -e "\n${GREEN}[4/12]${NC} Setting up config directory…"
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
     cat > "$CONFIG_DIR/config.yaml" << 'EOF'
@@ -82,7 +82,7 @@ else
 fi
 
 # ── 5. systemd service (embedded heredoc) ────────────────────────────────────
-echo -e "\n${GREEN}[5/11]${NC} Installing systemd service…"
+echo -e "\n${GREEN}[5/12]${NC} Installing systemd service…"
 cat > /etc/systemd/system/power-bridge.service << 'EOF'
 [Unit]
 Description=power-bridge – powerfox poweropti → virtual Shelly Pro 3EM
@@ -111,7 +111,7 @@ NoNewPrivileges=yes
 ProtectSystem=full
 ProtectHome=true
 PrivateTmp=yes
-ReadWritePaths=/etc/power-bridge /etc/wpa_supplicant
+ReadWritePaths=/etc/power-bridge /etc/wpa_supplicant /etc/NetworkManager/system-connections
 
 [Install]
 WantedBy=multi-user.target
@@ -121,7 +121,7 @@ systemctl enable power-bridge.service
 ok "Systemd service installed and enabled"
 
 # ── 6. Avahi service (embedded heredoc) ──────────────────────────────────────
-echo -e "\n${GREEN}[6/11]${NC} Registering mDNS service with Avahi…"
+echo -e "\n${GREEN}[6/12]${NC} Registering mDNS service with Avahi…"
 mkdir -p "$AVAHI_SVC_DIR"
 cat > "$AVAHI_SVC_DIR/power-bridge.service" << 'EOF'
 <?xml version="1.0" standalone='no'?>
@@ -148,8 +148,70 @@ systemctl enable avahi-daemon
 systemctl restart avahi-daemon 2>/dev/null || true
 ok "Avahi mDNS service registered"
 
-# ── 7. hostapd + dnsmasq (AP mode, only if not already configured) ───────────
-echo -e "\n${GREEN}[7/11]${NC} Configuring Access Point (hostapd + dnsmasq)…"
+# ── 7. NetworkManager handoff (Bookworm compatibility) ────────────────────────
+echo -e "\n${GREEN}[7/12]${NC} Handing wlan0 over from NetworkManager to wpa_supplicant…"
+if systemctl is-active NetworkManager >/dev/null 2>&1; then
+    NM_SSID=""
+    NM_PSK=""
+    if command -v nmcli >/dev/null 2>&1; then
+        NM_SSID=$(nmcli -g 802-11-wireless.ssid connection show preconfigured 2>/dev/null || true)
+        NM_PSK=$(nmcli -g 802-11-wireless-security.psk connection show preconfigured 2>/dev/null || true)
+    fi
+    if [ -f /etc/NetworkManager/system-connections/preconfigured.nmconnection ]; then
+        [ -n "$NM_SSID" ] || NM_SSID=$(sed -n 's/^ssid=//p' /etc/NetworkManager/system-connections/preconfigured.nmconnection | head -1 || true)
+        [ -n "$NM_PSK" ] || NM_PSK=$(sed -n 's/^psk=//p' /etc/NetworkManager/system-connections/preconfigured.nmconnection | head -1 || true)
+    fi
+
+    if [ -n "$NM_SSID" ] && [ -n "$NM_PSK" ]; then
+        cat > /etc/wpa_supplicant/wpa_supplicant.conf << EOF
+country=DE
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+
+network={
+    ssid="${NM_SSID}"
+    psk="${NM_PSK}"
+    key_mgmt=WPA-PSK
+}
+EOF
+        ok "Wrote WiFi credentials from NetworkManager profile to wpa_supplicant.conf"
+    else
+        warn "Could not read preconfigured NetworkManager WiFi credentials"
+    fi
+
+    systemctl stop wpa_supplicant 2>/dev/null || true
+    systemctl start wpa_supplicant@wlan0 2>/dev/null || true
+
+    WPA_CONNECTED=0
+    for _ in $(seq 1 20); do
+        WLAN0_IP=$(ip -4 addr show wlan0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1 || true)
+        if [ -n "$WLAN0_IP" ] && [ "$WLAN0_IP" != "$AP_IP" ]; then
+            WPA_CONNECTED=1
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "$WPA_CONNECTED" -eq 1 ]; then
+        ok "wpa_supplicant connected on wlan0 before NetworkManager handoff"
+    else
+        warn "wpa_supplicant did not connect within 20s; proceeding with NetworkManager handoff anyway"
+    fi
+
+    mkdir -p /etc/NetworkManager/conf.d
+    cat > /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf << 'EOF'
+[keyfile]
+unmanaged-devices=interface-name:wlan0
+EOF
+    systemctl reload NetworkManager 2>/dev/null || true
+    nmcli connection delete preconfigured 2>/dev/null || true
+    ok "NetworkManager set to unmanaged for wlan0"
+else
+    ok "NetworkManager is not active – skipping wlan0 handoff"
+fi
+
+# ── 8. hostapd + dnsmasq (AP mode, only if not already configured) ───────────
+echo -e "\n${GREEN}[8/12]${NC} Configuring Access Point (hostapd + dnsmasq)…"
 
 if [ ! -f /etc/hostapd/hostapd.conf ] || ! grep -q "power-bridge" /etc/hostapd/hostapd.conf 2>/dev/null; then
     cat > /etc/hostapd/hostapd.conf << EOF
@@ -197,8 +259,8 @@ else
     ok "dhcpcd static IP already configured – skipping"
 fi
 
-# ── 8. Install prepare-image.sh ───────────────────────────────────────────────
-echo -e "\n${GREEN}[8/11]${NC} Installing prepare-image.sh…"
+# ── 9. Install prepare-image.sh ───────────────────────────────────────────────
+echo -e "\n${GREEN}[9/12]${NC} Installing prepare-image.sh…"
 mkdir -p "$SHARE_DIR"
 cat > "$SHARE_DIR/prepare-image.sh" << 'PREPARE_EOF'
 #!/usr/bin/env bash
@@ -348,8 +410,8 @@ PREPARE_EOF
 chmod 755 "$SHARE_DIR/prepare-image.sh"
 ok "prepare-image.sh installed to $SHARE_DIR/prepare-image.sh"
 
-# ── 9. Install OTA update scripts ─────────────────────────────────────────────
-echo -e "\n${GREEN}[9/11]${NC} Installing OTA update scripts…"
+# ── 10. Install OTA update scripts ────────────────────────────────────────────
+echo -e "\n${GREEN}[10/12]${NC} Installing OTA update scripts…"
 mkdir -p "$SHARE_DIR"
 
 cat > "$SHARE_DIR/update.sh" << 'UPDATE_EOF'
@@ -524,8 +586,8 @@ ROLLBACK_EOF
 chmod 755 "$SHARE_DIR/rollback.sh"
 ok "rollback.sh installed to $SHARE_DIR/rollback.sh"
 
-# ── 10. Install power-bridge-update.service ──────────────────────────────────
-echo -e "\n${GREEN}[10/11]${NC} Installing power-bridge-update.service…"
+# ── 11. Install power-bridge-update.service ──────────────────────────────────
+echo -e "\n${GREEN}[11/12]${NC} Installing power-bridge-update.service…"
 cat > /etc/systemd/system/power-bridge-update.service << 'EOF'
 [Unit]
 Description=power-bridge OTA update – check GitHub Releases at boot
@@ -552,9 +614,9 @@ systemctl daemon-reload
 systemctl enable power-bridge-update.service
 ok "power-bridge-update.service installed and enabled"
 
-# ── 11. Enable and start services ─────────────────────────────────────────────
-echo -e "\n${GREEN}[11/11]${NC} Starting services…"
-systemctl restart dhcpcd 2>/dev/null || true
+# ── 12. Enable and start services ─────────────────────────────────────────────
+echo -e "\n${GREEN}[12/12]${NC} Starting services…"
+systemctl is-active dhcpcd 2>/dev/null && systemctl restart dhcpcd || true
 systemctl restart hostapd 2>/dev/null || warn "hostapd failed to start (may need reboot)"
 systemctl restart dnsmasq 2>/dev/null || warn "dnsmasq failed to start"
 systemctl start power-bridge.service 2>/dev/null || warn "power-bridge failed to start"
