@@ -161,7 +161,11 @@ STATE=$(nmcli -g GENERAL.STATE connection show power-bridge-wifi 2>/dev/null || 
 if ! echo "$STATE" | grep -qi "activated"; then
     logger -t power-bridge "WiFi connection timed out after %ds – reverting to AP mode"
     nmcli connection delete power-bridge-wifi 2>/dev/null || true
-    nmcli connection show power-bridge-ap >/dev/null 2>&1 || nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "power-bridge" 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared ipv4.addresses 192.168.4.1/24 wifi-sec.key-mgmt none
+    nmcli connection show power-bridge-ap >/dev/null 2>&1 || \
+        nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "power-bridge" \
+            802-11-wireless.mode ap 802-11-wireless.band bg \
+            ipv4.method shared ipv4.addresses 192.168.4.1/24 \
+            wifi-sec.key-mgmt none
     nmcli connection up power-bridge-ap 2>/dev/null || true
 else
     logger -t power-bridge "WiFi connected via NetworkManager"

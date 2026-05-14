@@ -160,6 +160,8 @@ if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/
     systemctl reload NetworkManager 2>/dev/null || true
 
     NM_SSID=$(nmcli -g 802-11-wireless.ssid connection show preconfigured 2>/dev/null || true)
+    # We intentionally read the plain PSK once to migrate "preconfigured" into
+    # a consistently named profile ("power-bridge-wifi").
     NM_PSK=$(nmcli -s -g 802-11-wireless-security.psk connection show preconfigured 2>/dev/null || true)
 
     nmcli connection delete power-bridge-ap 2>/dev/null || true
