@@ -184,8 +184,8 @@ EOF
 
     WPA_CONNECTED=0
     for _ in $(seq 1 20); do
-        WLAN_IP=$(ip -4 addr show wlan0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1 || true)
-        if [ -n "$WLAN_IP" ] && [ "$WLAN_IP" != "$AP_IP" ]; then
+        WLAN0_IP=$(ip -4 addr show wlan0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1 || true)
+        if [ -n "$WLAN0_IP" ] && [ "$WLAN0_IP" != "$AP_IP" ]; then
             WPA_CONNECTED=1
             break
         fi
