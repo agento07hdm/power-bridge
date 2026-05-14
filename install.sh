@@ -160,22 +160,30 @@ if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/
     systemctl reload NetworkManager 2>/dev/null || true
 
     NM_SSID=$(nmcli -g 802-11-wireless.ssid connection show preconfigured 2>/dev/null || true)
-    # We intentionally read the plain PSK once to migrate "preconfigured" into
-    # a consistently named profile ("power-bridge-wifi").
-    NM_PSK=$(nmcli -s -g 802-11-wireless-security.psk connection show preconfigured 2>/dev/null || true)
 
     nmcli connection delete power-bridge-ap 2>/dev/null || true
     nmcli connection delete power-bridge-wifi 2>/dev/null || true
-    nmcli connection delete preconfigured 2>/dev/null || true
 
     if [ -n "$NM_SSID" ]; then
-        if [ -n "$NM_PSK" ]; then
-            nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
-                wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$NM_PSK" || true
-        else
-            nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
-                wifi-sec.key-mgmt none || true
+        if ! nmcli connection clone preconfigured power-bridge-wifi >/dev/null 2>&1; then
+            NM_KEYMGMT=$(nmcli -g 802-11-wireless-security.key-mgmt connection show preconfigured 2>/dev/null || true)
+            # Clone failure fallback: read PSK once so WPA networks can still be migrated.
+            NM_PSK=$(nmcli -s -g 802-11-wireless-security.psk connection show preconfigured 2>/dev/null || true)
+            if [ "$NM_KEYMGMT" = "wpa-psk" ] && [ -n "$NM_PSK" ]; then
+                nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
+                    wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$NM_PSK" 2>/dev/null || true
+            elif [ -z "$NM_KEYMGMT" ] || [ "$NM_KEYMGMT" = "none" ]; then
+                nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
+                    wifi-sec.key-mgmt none 2>/dev/null || true
+            else
+                warn "Unsupported preconfigured key-mgmt '$NM_KEYMGMT' – creating open fallback profile"
+                nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
+                    wifi-sec.key-mgmt none 2>/dev/null || true
+            fi
+            unset NM_PSK
         fi
+        nmcli connection modify power-bridge-wifi connection.interface-name wlan0 802-11-wireless.ssid "$NM_SSID" 2>/dev/null || true
+        nmcli connection delete preconfigured 2>/dev/null || true
         nmcli connection up power-bridge-wifi 2>/dev/null || warn "Could not activate power-bridge-wifi"
         ok "NetworkManager now manages wlan0 with profile power-bridge-wifi"
     else
@@ -602,7 +610,7 @@ ok "power-bridge-update.service installed and enabled"
 # ── 12. Enable and start services ─────────────────────────────────────────────
 echo -e "\n${GREEN}[12/12]${NC} Starting services…"
 if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
-    if ! nmcli -t -f NAME connection show | grep -qx "power-bridge-wifi"; then
+    if ! nmcli -t -f NAME connection show --active | grep -qx "power-bridge-wifi"; then
         nmcli connection up power-bridge-ap 2>/dev/null || warn "power-bridge-ap failed to start"
     fi
 else

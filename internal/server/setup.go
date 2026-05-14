@@ -157,23 +157,25 @@ func applyWifiConfig(ssid, password string) {
 
 		checkScript := fmt.Sprintf(`#!/bin/sh
 sleep %d
-STATE=$(nmcli -g GENERAL.STATE connection show power-bridge-wifi 2>/dev/null || true)
-if ! echo "$STATE" | grep -qi "activated"; then
+CONN_STATE=$(nmcli -g GENERAL.STATE connection show power-bridge-wifi 2>/dev/null || true)
+DEV_STATE=$(nmcli -g GENERAL.STATE device show wlan0 2>/dev/null || true)
+DEV_STATE_CODE=$(echo "$DEV_STATE" | awk '{print $1}')
+if [ "$CONN_STATE" != "activated" ] && [ "$DEV_STATE_CODE" != "100" ]; then
     logger -t power-bridge "WiFi connection timed out after %ds – reverting to AP mode"
     nmcli connection delete power-bridge-wifi 2>/dev/null || true
     nmcli connection show power-bridge-ap >/dev/null 2>&1 || \
-        nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "power-bridge" \
+        nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "%s" \
             802-11-wireless.mode ap 802-11-wireless.band bg \
-            ipv4.method shared ipv4.addresses 192.168.4.1/24 \
+            ipv4.method shared ipv4.addresses %s/24 \
             wifi-sec.key-mgmt none
     nmcli connection up power-bridge-ap 2>/dev/null || true
 else
     logger -t power-bridge "WiFi connected via NetworkManager"
 fi
 systemctl restart power-bridge
-`, wifiConnectionTimeoutSecs, wifiConnectionTimeoutSecs)
+`, wifiConnectionTimeoutSecs, wifiConnectionTimeoutSecs, apSSID, apModeIP)
 		scriptPath := "/etc/power-bridge/wifi-check.sh"
-		if err := os.WriteFile(scriptPath, []byte(checkScript), 0o755); err != nil {
+		if err := os.WriteFile(scriptPath, []byte(checkScript), 0o700); err != nil {
 			log.Printf("wifi-check script write failed: %v – falling back to direct restart", err)
 			_ = exec.Command("systemctl", "restart", serviceName).Run()
 			return
