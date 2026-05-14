@@ -26,7 +26,7 @@ NoNewPrivileges=yes
 ProtectSystem=full
 ProtectHome=true
 PrivateTmp=yes
-ReadWritePaths=/etc/power-bridge /etc/wpa_supplicant
+ReadWritePaths=/etc/power-bridge /etc/wpa_supplicant /etc/NetworkManager/system-connections
 
 [Install]
 WantedBy=multi-user.target

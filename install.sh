@@ -29,6 +29,9 @@ VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
 [ -n "$VERSION" ] || error "Could not determine latest release version from GitHub API"
 ok "Latest version: $VERSION"
 
+# Stop running service before replacing binary (fixes locked-binary update issue)
+systemctl stop power-bridge 2>/dev/null || true
+
 # ── 2. Download and install binary ────────────────────────────────────────────
 echo -e "\n${GREEN}[2/12]${NC} Downloading binary power-bridge-${VERSION}-linux-armv6…"
 BINARY_URL="https://github.com/${REPO}/releases/download/${VERSION}/power-bridge-${VERSION}-linux-armv6"
@@ -47,12 +50,14 @@ ok "Version $VERSION recorded in $CONFIG_DIR/VERSION"
 echo -e "\n${GREEN}[3/12]${NC} Installing required packages…"
 apt-get update -qq
 apt-get install -y --no-install-recommends \
-    hostapd \
-    dnsmasq \
     avahi-daemon \
     curl
-systemctl unmask hostapd 2>/dev/null || true
-systemctl unmask dnsmasq 2>/dev/null || true
+if ! command -v nmcli >/dev/null 2>&1; then
+    apt-get install -y --no-install-recommends hostapd dnsmasq
+    systemctl unmask hostapd 2>/dev/null || true
+    systemctl unmask dnsmasq 2>/dev/null || true
+    warn "nmcli not found: installed hostapd/dnsmasq fallback stack"
+fi
 ok "Packages installed"
 
 # ── 4. Config directory & default config ─────────────────────────────────────
@@ -148,73 +153,60 @@ systemctl enable avahi-daemon
 systemctl restart avahi-daemon 2>/dev/null || true
 ok "Avahi mDNS service registered"
 
-# ── 7. NetworkManager handoff (Bookworm compatibility) ────────────────────────
-echo -e "\n${GREEN}[7/12]${NC} Handing wlan0 over from NetworkManager to wpa_supplicant…"
-if systemctl is-active NetworkManager >/dev/null 2>&1; then
-    NM_SSID=""
-    NM_PSK=""
-    if command -v nmcli >/dev/null 2>&1; then
-        NM_SSID=$(nmcli -g 802-11-wireless.ssid connection show preconfigured 2>/dev/null || true)
-        NM_PSK=$(nmcli -g 802-11-wireless-security.psk connection show preconfigured 2>/dev/null || true)
-    fi
-    if [ -f /etc/NetworkManager/system-connections/preconfigured.nmconnection ]; then
-        [ -n "$NM_SSID" ] || NM_SSID=$(sed -n 's/^ssid=//p' /etc/NetworkManager/system-connections/preconfigured.nmconnection | head -1 || true)
-        [ -n "$NM_PSK" ] || NM_PSK=$(sed -n 's/^psk=//p' /etc/NetworkManager/system-connections/preconfigured.nmconnection | head -1 || true)
-    fi
-
-    if [ -n "$NM_SSID" ] && [ -n "$NM_PSK" ]; then
-        cat > /etc/wpa_supplicant/wpa_supplicant.conf << EOF
-country=DE
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-
-network={
-    ssid="${NM_SSID}"
-    psk="${NM_PSK}"
-    key_mgmt=WPA-PSK
-}
-EOF
-        ok "Wrote WiFi credentials from NetworkManager profile to wpa_supplicant.conf"
-    else
-        warn "Could not read preconfigured NetworkManager WiFi credentials"
-    fi
-
-    systemctl stop wpa_supplicant 2>/dev/null || true
-    systemctl start wpa_supplicant@wlan0 2>/dev/null || true
-
-    WPA_CONNECTED=0
-    for _ in $(seq 1 20); do
-        WLAN0_IP=$(ip -4 addr show wlan0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1 || true)
-        if [ -n "$WLAN0_IP" ] && [ "$WLAN0_IP" != "$AP_IP" ]; then
-            WPA_CONNECTED=1
-            break
-        fi
-        sleep 1
-    done
-
-    if [ "$WPA_CONNECTED" -eq 1 ]; then
-        ok "wpa_supplicant connected on wlan0 before NetworkManager handoff"
-    else
-        warn "wpa_supplicant did not connect within 20s; proceeding with NetworkManager handoff anyway"
-    fi
-
-    mkdir -p /etc/NetworkManager/conf.d
-    cat > /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf << 'EOF'
-[keyfile]
-unmanaged-devices=interface-name:wlan0
-EOF
+# ── 7. NetworkManager WLAN management ─────────────────────────────────────────
+echo -e "\n${GREEN}[7/12]${NC} Configuring wlan0 under NetworkManager…"
+if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
+    rm -f /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf
     systemctl reload NetworkManager 2>/dev/null || true
-    nmcli connection delete preconfigured 2>/dev/null || true
-    ok "NetworkManager set to unmanaged for wlan0"
+
+    NM_SSID=$(nmcli -g 802-11-wireless.ssid connection show preconfigured 2>/dev/null || true)
+
+    nmcli connection delete power-bridge-ap 2>/dev/null || true
+    nmcli connection delete power-bridge-wifi 2>/dev/null || true
+
+    if [ -n "$NM_SSID" ]; then
+        if ! nmcli connection clone preconfigured power-bridge-wifi >/dev/null 2>&1; then
+            NM_KEYMGMT=$(nmcli -g 802-11-wireless-security.key-mgmt connection show preconfigured 2>/dev/null || true)
+            # Clone failure fallback: read PSK once so WPA networks can still be migrated.
+            NM_PSK=$(nmcli -s -g 802-11-wireless-security.psk connection show preconfigured 2>/dev/null || true)
+            if [ "$NM_KEYMGMT" = "wpa-psk" ] && [ -n "$NM_PSK" ]; then
+                nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
+                    wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$NM_PSK" 2>/dev/null || true
+            elif [ -z "$NM_KEYMGMT" ] || [ "$NM_KEYMGMT" = "none" ]; then
+                nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
+                    wifi-sec.key-mgmt none 2>/dev/null || true
+            else
+                warn "Unsupported preconfigured key-mgmt '$NM_KEYMGMT' – creating open fallback profile"
+                nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
+                    wifi-sec.key-mgmt none 2>/dev/null || true
+            fi
+            unset NM_PSK
+        fi
+        nmcli connection modify power-bridge-wifi connection.interface-name wlan0 802-11-wireless.ssid "$NM_SSID" 2>/dev/null || true
+        nmcli connection delete preconfigured 2>/dev/null || true
+        nmcli connection up power-bridge-wifi 2>/dev/null || warn "Could not activate power-bridge-wifi"
+        ok "NetworkManager now manages wlan0 with profile power-bridge-wifi"
+    else
+        nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "$AP_SSID" \
+            802-11-wireless.mode ap 802-11-wireless.band bg \
+            ipv4.method shared ipv4.addresses ${AP_IP}/24 \
+            wifi-sec.key-mgmt none || true
+        nmcli connection up power-bridge-ap 2>/dev/null || warn "Could not activate power-bridge-ap"
+        ok "No preconfigured WiFi found – AP mode prepared via NetworkManager"
+    fi
 else
-    ok "NetworkManager is not active – skipping wlan0 handoff"
+    ok "nmcli/NetworkManager unavailable – keeping legacy wpa_supplicant flow"
 fi
 
-# ── 8. hostapd + dnsmasq (AP mode, only if not already configured) ───────────
-echo -e "\n${GREEN}[8/12]${NC} Configuring Access Point (hostapd + dnsmasq)…"
-
-if [ ! -f /etc/hostapd/hostapd.conf ] || ! grep -q "power-bridge" /etc/hostapd/hostapd.conf 2>/dev/null; then
-    cat > /etc/hostapd/hostapd.conf << EOF
+# ── 8. AP stack handling ──────────────────────────────────────────────────────
+echo -e "\n${GREEN}[8/12]${NC} Handling AP stack services…"
+if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
+    systemctl disable hostapd dnsmasq 2>/dev/null || true
+    systemctl stop hostapd dnsmasq 2>/dev/null || true
+    ok "hostapd/dnsmasq disabled under NetworkManager mode"
+else
+    if [ ! -f /etc/hostapd/hostapd.conf ] || ! grep -q "power-bridge" /etc/hostapd/hostapd.conf 2>/dev/null; then
+        cat > /etc/hostapd/hostapd.conf << EOF
 # power-bridge AP config
 interface=wlan0
 driver=nl80211
@@ -227,36 +219,37 @@ auth_algs=1
 ignore_broadcast_ssid=0
 wpa=0
 EOF
-    sed -i 's|^#\?DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd 2>/dev/null || \
-        echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
-    ok "hostapd configured for SSID '$AP_SSID'"
-else
-    ok "hostapd already configured – skipping"
-fi
+        sed -i 's|^#\?DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd 2>/dev/null || \
+            echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
+        ok "hostapd configured for SSID '$AP_SSID'"
+    else
+        ok "hostapd already configured – skipping"
+    fi
 
-if [ ! -f /etc/dnsmasq.d/power-bridge-ap.conf ]; then
-    cat > /etc/dnsmasq.d/power-bridge-ap.conf << EOF
+    if [ ! -f /etc/dnsmasq.d/power-bridge-ap.conf ]; then
+        cat > /etc/dnsmasq.d/power-bridge-ap.conf << EOF
 # power-bridge AP mode DHCP
 interface=wlan0
 dhcp-range=192.168.4.10,192.168.4.50,255.255.255.0,24h
 address=/#/${AP_IP}
 EOF
-    ok "dnsmasq DHCP configured"
-else
-    ok "dnsmasq already configured – skipping"
-fi
+        ok "dnsmasq DHCP configured"
+    else
+        ok "dnsmasq already configured – skipping"
+    fi
 
-if ! grep -q "power-bridge AP" /etc/dhcpcd.conf 2>/dev/null; then
-    cat >> /etc/dhcpcd.conf << EOF
+    if ! grep -q "power-bridge AP" /etc/dhcpcd.conf 2>/dev/null; then
+        cat >> /etc/dhcpcd.conf << EOF
 
 # power-bridge AP mode static IP
 interface wlan0
     static ip_address=${AP_IP}/24
     nohook wpa_supplicant
 EOF
-    ok "Static IP configured for wlan0"
-else
-    ok "dhcpcd static IP already configured – skipping"
+        ok "Static IP configured for wlan0"
+    else
+        ok "dhcpcd static IP already configured – skipping"
+    fi
 fi
 
 # ── 9. Install prepare-image.sh ───────────────────────────────────────────────
@@ -616,9 +609,15 @@ ok "power-bridge-update.service installed and enabled"
 
 # ── 12. Enable and start services ─────────────────────────────────────────────
 echo -e "\n${GREEN}[12/12]${NC} Starting services…"
-systemctl is-active dhcpcd 2>/dev/null && systemctl restart dhcpcd || true
-systemctl restart hostapd 2>/dev/null || warn "hostapd failed to start (may need reboot)"
-systemctl restart dnsmasq 2>/dev/null || warn "dnsmasq failed to start"
+if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
+    if ! nmcli -t -f NAME connection show --active | grep -qx "power-bridge-wifi"; then
+        nmcli connection up power-bridge-ap 2>/dev/null || warn "power-bridge-ap failed to start"
+    fi
+else
+    systemctl is-active dhcpcd 2>/dev/null && systemctl restart dhcpcd || true
+    systemctl restart hostapd 2>/dev/null || warn "hostapd failed to start (may need reboot)"
+    systemctl restart dnsmasq 2>/dev/null || warn "dnsmasq failed to start"
+fi
 systemctl start power-bridge.service 2>/dev/null || warn "power-bridge failed to start"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
