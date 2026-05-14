@@ -87,14 +87,33 @@ FIRSTRUN_FILE="$BOOT/firstrun.sh"
 
 CMDLINE=$(cat "$CMDLINE_FILE")
 
-# Shell-sichere Darstellung von SSID und Passwort für die Einbettung in firstrun.sh.
-# printf '%q' gibt eine shell-escaped Version aus, die auch Sonderzeichen wie
-# $, Backticks, Klammern und Semikolons sicher darstellt.
-Q_SSID=$(printf '%q' "$SSID")
-Q_PASS=$(printf '%q' "$PASSWORD")
+# ── Hilfsfunktionen zum sicheren Einbetten von SSID/Passwort ─────────────────
+
+# safe_dquote: Escaped Sonderzeichen (\, ", $, Backtick) für die Einbettung
+# in eine doppelt-gequotete Shell-Zeichenkette.  Wichtig: erst Backslashes
+# escapen (\ → \\), dann die anderen Sonderzeichen.
+safe_dquote() {
+    local s="${1//\\/\\\\}"   # \  → \\
+    s="${s//\"/\\\"}"          # "  → \"
+    s="${s//\$/\\\$}"          # $  → \$
+    s="${s//\`/\\\`}"          # `  → \`
+    printf '%s' "$s"
+}
+
+# safe_wpa: Escaped Sonderzeichen für den Einsatz in wpa_supplicant.conf-Werten
+# (identische Regeln: zuerst \, dann ").
+safe_wpa() {
+    local s="${1//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '%s' "$s"
+}
+
+ESC_SSID=$(safe_dquote "$SSID")
+ESC_PASS=$(safe_dquote "$PASSWORD")
+WPA_SSID=$(safe_wpa "$SSID")
+WPA_PASS=$(safe_wpa "$PASSWORD")
 
 # Schreibt wpa_supplicant.conf via printf, ohne Heredoc-Variablenexpansion.
-# Das verhindert, dass Sonderzeichen in SSID/Passwort die Dateistruktur brechen.
 write_wpa_conf() {
     local dest="$1"
     {
@@ -102,8 +121,8 @@ write_wpa_conf() {
         printf 'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n'
         printf 'update_config=1\n\n'
         printf 'network={\n'
-        printf '    ssid="%s"\n' "${SSID//\"/\\\"}"
-        printf '    psk="%s"\n' "${PASSWORD//\"/\\\"}"
+        printf '    ssid="%s"\n' "$WPA_SSID"
+        printf '    psk="%s"\n'  "$WPA_PASS"
         printf '    key_mgmt=WPA-PSK\n'
         printf '}\n'
     } > "$dest"
@@ -134,16 +153,15 @@ SHEBANG
     fi
 
     # WiFi-Konfigurationsblock anhängen.
-    # Q_SSID und Q_PASS sind mit printf '%q' shell-escaped: Sonderzeichen wie
-    # $, Backticks und Klammern werden durch Backslash-Escaping gesichert,
-    # sodass sie in der generierten firstrun.sh nicht als Shell-Konstrukte
-    # interpretiert werden können.
+    # ESC_SSID / ESC_PASS sind durch safe_dquote() für doppelt-gequotete
+    # Shell-Strings vorbereitet (\ " $ ` escaped).  WPA_SSID / WPA_PASS sind
+    # für den wpa_supplicant-Eintrag vorbereitet (\ " escaped).
     cat >> "$FIRSTRUN_FILE" << WIFIBLOCK
 
 # power-bridge-wifi-start
 # WLAN-Konfiguration (geschrieben von scripts/firstboot-wifi.sh)
-WLAN_SSID=${Q_SSID}
-WLAN_PASS=${Q_PASS}
+WLAN_SSID="${ESC_SSID}"
+WLAN_PASS="${ESC_PASS}"
 WLAN_COUNTRY=${COUNTRY}
 raspi-config nonint do_wifi_country "\$WLAN_COUNTRY" 2>/dev/null || true
 if command -v nmcli >/dev/null 2>&1; then
@@ -153,10 +171,11 @@ if command -v nmcli >/dev/null 2>&1; then
         connection.autoconnect yes 2>/dev/null || true
     nmcli connection up preconfigured 2>/dev/null || true
 fi
-# wpa_supplicant-Fallback für Systeme ohne NetworkManager
+# wpa_supplicant-Fallback für Systeme ohne NetworkManager.
+# Werte wurden bereits durch safe_wpa() escaped (\ → \\, " → \").
 mkdir -p /etc/wpa_supplicant
 printf 'country=%s\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n\nnetwork={\n    ssid="%s"\n    psk="%s"\n    key_mgmt=WPA-PSK\n}\n' \\
-    "\$WLAN_COUNTRY" "\$WLAN_SSID" "\$WLAN_PASS" > /etc/wpa_supplicant/wpa_supplicant.conf
+    "\$WLAN_COUNTRY" "${WPA_SSID}" "${WPA_PASS}" > /etc/wpa_supplicant/wpa_supplicant.conf
 chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
 # power-bridge-wifi-end
 exit 0
