@@ -52,8 +52,17 @@ Ein powerfox **poweropti** wird lokal ausgelesen und als virtueller **Shelly Pro
 5. Zahnrad-Symbol → **Erweiterte Optionen**:
    - Hostname: `power-bridge`
    - SSH aktivieren, Benutzer `pi` mit Passwort
-   - _(WiFi erst nach der Installation über power-bridge einrichten)_
+   - **Für Erstinstallation / Entwickler** (Pi muss installscript aus dem Internet herunterladen):
+     WiFi-SSID und -Passwort des Heimnetzes eintragen → Pi verbindet sich beim ersten Boot
+     automatisch. IP-Adresse im Router-DHCP-Client suchen, dann `ssh pi@<PI_IP>`.
+   - **Für Kunden-Deployment** (fertige Image-Weitergabe):
+     WiFi-Felder leer lassen – power-bridge startet nach der Installation automatisch
+     im AP-Modus und leitet den Kunden durch die Erstkonfiguration.
 6. Schreiben starten
+
+> **Alternativ** zum Raspberry Pi Imager: das Skript `scripts/firstboot-wifi.sh` schreibt
+> die nötigen Konfigurationsdateien auf eine bereits geflashte SD-Karte.
+> Zugangsdaten nur lokal eintragen und nie in dieses Repository committen.
 
 ---
 
@@ -61,12 +70,9 @@ Ein powerfox **poweropti** wird lokal ausgelesen und als virtueller **Shelly Pro
 
 ### Auf dem Pi installieren (empfohlen)
 
-
-
-
 ```bash
-ssh-keygen -R 192.168.2.112
-ssh pi@<PI_IP>
+ssh-keygen -R power-bridge.local   # ggf. alten Fingerabdruck löschen
+ssh pi@<PI_IP>                      # IP aus Router-DHCP oder: ssh pi@power-bridge.local
 curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash
 ```
 
@@ -77,7 +83,27 @@ Das Skript:
 - Legt `/etc/power-bridge/config.yaml` an (nur wenn noch keine existiert)
 - Richtet den systemd-Service ein (als Heredoc eingebettet, kein git clone nötig)
 - Registriert den mDNS-Service bei Avahi
-- Startet den Access Point "ShellyMeter-Setup"
+- Startet den Access Point **"power-bridge"** wenn kein Heim-WLAN konfiguriert ist
+
+### Headless WiFi-Setup ohne Pi Imager (Alternative)
+
+Das Hilfsskript `scripts/firstboot-wifi.sh` schreibt die WLAN-Zugangsdaten auf eine
+bereits geflashte SD-Karte. Es unterstützt Bookworm (NetworkManager / firstrun.sh) und
+Bullseye/Buster (wpa_supplicant.conf).
+
+```bash
+# SD-Karte mounten (Linux):
+sudo mount /dev/sdb1 /mnt/pi-boot
+
+# WiFi-Konfiguration schreiben (Platzhalter durch echte Werte ersetzen):
+sudo bash scripts/firstboot-wifi.sh /mnt/pi-boot "SSID" "Passwort" DE
+
+# SD-Karte sicher auswerfen:
+sudo umount /mnt/pi-boot
+```
+
+> ⚠️ **Sicherheitshinweis:** Zugangsdaten nur lokal eingeben und niemals in das
+> Repository committen.
 
 ---
 
@@ -173,11 +199,15 @@ sudo systemctl restart power-bridge
 
 ---
 
-## Ersteinrichtung (WLAN-Setup)
+## Kunden-Ersteinrichtung via AP-Modus
 
-1. Mit dem Smartphone/Laptop mit dem WLAN **"ShellyMeter-Setup"** verbinden
+Wenn das Gerät ohne Heim-WLAN geflasht wurde (Kunden-Deployment), startet power-bridge
+automatisch als Access Point. Die Erstkonfiguration läuft vollständig über das Smartphone:
+
+1. Mit dem Smartphone/Laptop mit dem WLAN **"power-bridge"** verbinden
    (kein Passwort)
-2. Browser öffnen: **http://192.168.4.1**
+2. Das Smartphone zeigt automatisch die Konfigurationsseite an (Captive Portal).
+   Alternativ Browser öffnen: **http://192.168.4.1**
 3. Formular ausfüllen:
    - Heim-WLAN SSID + Passwort
    - poweropti IP-Adresse
