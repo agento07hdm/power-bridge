@@ -123,6 +123,9 @@ func (s *Server) setupSave(w http.ResponseWriter, r *http.Request) {
 
 // applyWifiConfig writes /etc/wpa_supplicant/wpa_supplicant.conf and triggers
 // wpa_supplicant to reconnect. Errors are logged but not fatal.
+// On Bookworm, install.sh marks wlan0 as unmanaged in
+// /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf, so wpa_supplicant
+// remains authoritative for WLAN credentials on wlan0.
 //
 // Instead of directly restarting power-bridge (which would kill the running
 // process), a detached background script is written and launched. The script
@@ -195,7 +198,9 @@ const apModeRestartDelaySecs = 3
 const wifiConnectionTimeoutSecs = 35
 
 // wlan0 operates as an Access Point. The static IP 192.168.4.1 is maintained
-// by dhcpcd.conf which was configured at install time.
+// by dhcpcd.conf which was configured at install time. On Bookworm,
+// install.sh also excludes wlan0 from NetworkManager via
+// /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf.
 func enableAPMode() {
 	log.Println("Enabling AP mode…")
 	_ = exec.Command("systemctl", "stop", "wpa_supplicant@wlan0").Run()
