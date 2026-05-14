@@ -14,6 +14,11 @@ import (
 	"github.com/fedzzito/power-bridge/internal/config"
 )
 
+func hasNmcli() bool {
+	_, err := exec.LookPath("nmcli")
+	return err == nil
+}
+
 // --------------------------------------------------------------------------
 // Poweropti auto-discovery (GET /setup/scan-poweropti)
 //
@@ -121,18 +126,62 @@ func (s *Server) setupSave(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?setup=done", http.StatusSeeOther)
 }
 
-// applyWifiConfig writes /etc/wpa_supplicant/wpa_supplicant.conf and triggers
-// wpa_supplicant to reconnect. Errors are logged but not fatal.
-// On Bookworm, install.sh marks wlan0 as unmanaged in
-// /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf, so wpa_supplicant
-// remains authoritative for WLAN credentials on wlan0.
-//
-// Instead of directly restarting power-bridge (which would kill the running
-// process), a detached background script is written and launched. The script
-// waits 35 seconds for the WiFi association to succeed:
-//   - If connected: restart power-bridge to start the data poller.
-//   - If not connected: revert to AP mode, then restart power-bridge.
+// applyWifiConfig prefers NetworkManager via nmcli and falls back to the old
+// wpa_supplicant flow when nmcli is unavailable.
 func applyWifiConfig(ssid, password string) {
+	if hasNmcli() {
+		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
+		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-wifi").Run()
+
+		var addErr error
+		if strings.TrimSpace(password) == "" {
+			addErr = exec.Command(
+				"nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0",
+				"con-name", "power-bridge-wifi", "ssid", ssid,
+				"wifi-sec.key-mgmt", "none",
+			).Run()
+		} else {
+			addErr = exec.Command(
+				"nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0",
+				"con-name", "power-bridge-wifi", "ssid", ssid,
+				"wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password,
+			).Run()
+		}
+		if addErr != nil {
+			log.Printf("nmcli add wifi connection failed: %v", addErr)
+			return
+		}
+		if err := exec.Command("nmcli", "connection", "up", "power-bridge-wifi").Run(); err != nil {
+			log.Printf("nmcli up power-bridge-wifi failed: %v", err)
+		}
+
+		checkScript := fmt.Sprintf(`#!/bin/sh
+sleep %d
+STATE=$(nmcli -g GENERAL.STATE connection show power-bridge-wifi 2>/dev/null || true)
+if ! echo "$STATE" | grep -qi "activated"; then
+    logger -t power-bridge "WiFi connection timed out after %ds – reverting to AP mode"
+    nmcli connection delete power-bridge-wifi 2>/dev/null || true
+    nmcli connection show power-bridge-ap >/dev/null 2>&1 || nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "power-bridge" 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared ipv4.addresses 192.168.4.1/24 wifi-sec.key-mgmt none
+    nmcli connection up power-bridge-ap 2>/dev/null || true
+else
+    logger -t power-bridge "WiFi connected via NetworkManager"
+fi
+systemctl restart power-bridge
+`, wifiConnectionTimeoutSecs, wifiConnectionTimeoutSecs)
+		scriptPath := "/etc/power-bridge/wifi-check.sh"
+		if err := os.WriteFile(scriptPath, []byte(checkScript), 0o755); err != nil {
+			log.Printf("wifi-check script write failed: %v – falling back to direct restart", err)
+			_ = exec.Command("systemctl", "restart", serviceName).Run()
+			return
+		}
+		cmd := exec.Command("setsid", "/bin/sh", scriptPath)
+		if err := cmd.Start(); err != nil {
+			log.Printf("wifi-check script launch failed: %v – falling back to direct restart", err)
+			_ = exec.Command("systemctl", "restart", serviceName).Run()
+		}
+		return
+	}
+
 	wpaConf := fmt.Sprintf(`country=DE
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
@@ -197,12 +246,29 @@ const apModeRestartDelaySecs = 3
 // to AP mode.
 const wifiConnectionTimeoutSecs = 35
 
-// wlan0 operates as an Access Point. The static IP 192.168.4.1 is maintained
-// by dhcpcd.conf which was configured at install time. On Bookworm,
-// install.sh also excludes wlan0 from NetworkManager via
-// /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf.
+// enableAPMode prefers NetworkManager via nmcli and falls back to
+// hostapd/dnsmasq for systems without nmcli.
 func enableAPMode() {
 	log.Println("Enabling AP mode…")
+	if hasNmcli() {
+		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
+		if err := exec.Command(
+			"nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0",
+			"con-name", "power-bridge-ap", "ssid", apSSID,
+			"802-11-wireless.mode", "ap",
+			"802-11-wireless.band", "bg",
+			"ipv4.method", "shared",
+			"ipv4.addresses", apModeIP+"/24",
+			"wifi-sec.key-mgmt", "none",
+		).Run(); err != nil {
+			log.Printf("nmcli add AP connection failed: %v", err)
+		}
+		if err := exec.Command("nmcli", "connection", "up", "power-bridge-ap").Run(); err != nil {
+			log.Printf("nmcli up power-bridge-ap failed: %v", err)
+		}
+		log.Println("AP mode enabled")
+		return
+	}
 	_ = exec.Command("systemctl", "stop", "wpa_supplicant@wlan0").Run()
 	_ = exec.Command("systemctl", "stop", "wpa_supplicant").Run()
 	time.Sleep(500 * time.Millisecond)
@@ -225,12 +291,16 @@ func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "error": err.Error()})
 		return
 	}
-	// Write an empty wpa_supplicant.conf so the OS cannot reconnect to the old
-	// network after the service restarts. The country code DE matches the value
-	// used in applyWifiConfig; adjust at install time if deploying outside Germany.
-	emptyWpaConf := "country=DE\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n"
-	if err := writeFileRoot("/etc/wpa_supplicant/wpa_supplicant.conf", emptyWpaConf); err != nil {
-		s.logf("wpa_supplicant clear failed: %v", err)
+	if hasNmcli() {
+		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-wifi").Run()
+	} else {
+		// Write an empty wpa_supplicant.conf so the OS cannot reconnect to the old
+		// network after the service restarts. The country code DE matches the value
+		// used in applyWifiConfig; adjust at install time if deploying outside Germany.
+		emptyWpaConf := "country=DE\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n"
+		if err := writeFileRoot("/etc/wpa_supplicant/wpa_supplicant.conf", emptyWpaConf); err != nil {
+			s.logf("wpa_supplicant clear failed: %v", err)
+		}
 	}
 	s.logf("WiFi credentials cleared – switching to AP mode")
 	_ = json.NewEncoder(w).Encode(map[string]string{

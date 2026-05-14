@@ -73,7 +73,7 @@ curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.
 Das Skript:
 - Ermittelt automatisch die neueste Release-Version von GitHub
 - Lädt die fertige ARMv6-Binary herunter (kein Compiler nötig)
-- Installiert hostapd, dnsmasq, avahi-daemon
+- Installiert avahi-daemon, curl (hostapd/dnsmasq nur als Legacy-Fallback ohne nmcli)
 - Legt `/etc/power-bridge/config.yaml` an (nur wenn noch keine existiert)
 - Richtet den systemd-Service ein (als Heredoc eingebettet, kein git clone nötig)
 - Registriert den mDNS-Service bei Avahi
