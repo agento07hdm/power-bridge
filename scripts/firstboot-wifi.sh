@@ -87,6 +87,29 @@ FIRSTRUN_FILE="$BOOT/firstrun.sh"
 
 CMDLINE=$(cat "$CMDLINE_FILE")
 
+# Shell-sichere Darstellung von SSID und Passwort für die Einbettung in firstrun.sh.
+# printf '%q' gibt eine shell-escaped Version aus, die auch Sonderzeichen wie
+# $, Backticks, Klammern und Semikolons sicher darstellt.
+Q_SSID=$(printf '%q' "$SSID")
+Q_PASS=$(printf '%q' "$PASSWORD")
+
+# Schreibt wpa_supplicant.conf via printf, ohne Heredoc-Variablenexpansion.
+# Das verhindert, dass Sonderzeichen in SSID/Passwort die Dateistruktur brechen.
+write_wpa_conf() {
+    local dest="$1"
+    {
+        printf 'country=%s\n' "$COUNTRY"
+        printf 'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n'
+        printf 'update_config=1\n\n'
+        printf 'network={\n'
+        printf '    ssid="%s"\n' "${SSID//\"/\\\"}"
+        printf '    psk="%s"\n' "${PASSWORD//\"/\\\"}"
+        printf '    key_mgmt=WPA-PSK\n'
+        printf '}\n'
+    } > "$dest"
+    chmod 600 "$dest"
+}
+
 if echo "$CMDLINE" | grep -q "firstboot\|firstrun"; then
     # Bookworm mit vorhandenem firstboot-Eintrag
     echo "→ Bookworm-Modus erkannt (firstboot bereits in cmdline.txt)"
@@ -95,10 +118,13 @@ if echo "$CMDLINE" | grep -q "firstboot\|firstrun"; then
         # Vorhandenes firstrun.sh ergänzen – WiFi-Block am Ende einfügen,
         # aber vor dem abschließenden 'exit 0' (falls vorhanden).
         echo "  Vorhandenes firstrun.sh wird um WLAN-Konfiguration ergänzt…"
-        # Entferne evtl. vorhandenes altes WiFi-NM-Setup aus einem früheren Lauf
-        sed -i '/# power-bridge-wifi-start/,/# power-bridge-wifi-end/d' "$FIRSTRUN_FILE" 2>/dev/null || true
-        # Entferne das abschließende 'exit 0' temporär, damit wir es neu anhängen können
-        grep -v '^exit 0' "$FIRSTRUN_FILE" > "${FIRSTRUN_FILE}.tmp" && mv "${FIRSTRUN_FILE}.tmp" "$FIRSTRUN_FILE" || true
+        # Entferne evtl. vorhandenen alten WiFi-Block aus einem früheren Lauf.
+        # sed -i.bak ist auf macOS und Linux identisch kompatibel.
+        sed -i.bak '/# power-bridge-wifi-start/,/# power-bridge-wifi-end/d' "$FIRSTRUN_FILE" 2>/dev/null || true
+        rm -f "${FIRSTRUN_FILE}.bak"
+        # Entferne das abschließende 'exit 0', damit wir es am Ende neu anfügen.
+        sed -i.bak '/^exit 0$/d' "$FIRSTRUN_FILE" 2>/dev/null || true
+        rm -f "${FIRSTRUN_FILE}.bak"
     else
         echo "  Neues firstrun.sh wird erstellt…"
         cat > "$FIRSTRUN_FILE" << 'SHEBANG'
@@ -107,14 +133,18 @@ set +e
 SHEBANG
     fi
 
-    # WiFi-Konfigurationsblock anhängen
+    # WiFi-Konfigurationsblock anhängen.
+    # Q_SSID und Q_PASS sind mit printf '%q' shell-escaped: Sonderzeichen wie
+    # $, Backticks und Klammern werden durch Backslash-Escaping gesichert,
+    # sodass sie in der generierten firstrun.sh nicht als Shell-Konstrukte
+    # interpretiert werden können.
     cat >> "$FIRSTRUN_FILE" << WIFIBLOCK
 
 # power-bridge-wifi-start
 # WLAN-Konfiguration (geschrieben von scripts/firstboot-wifi.sh)
-WLAN_SSID="${SSID//\"/\\\"}"
-WLAN_PASS="${PASSWORD//\"/\\\"}"
-WLAN_COUNTRY="${COUNTRY}"
+WLAN_SSID=${Q_SSID}
+WLAN_PASS=${Q_PASS}
+WLAN_COUNTRY=${COUNTRY}
 raspi-config nonint do_wifi_country "\$WLAN_COUNTRY" 2>/dev/null || true
 if command -v nmcli >/dev/null 2>&1; then
     nmcli radio wifi on
@@ -123,19 +153,10 @@ if command -v nmcli >/dev/null 2>&1; then
         connection.autoconnect yes 2>/dev/null || true
     nmcli connection up preconfigured 2>/dev/null || true
 fi
-# wpa_supplicant-Fallback (für Legacy-Systeme ohne NetworkManager)
+# wpa_supplicant-Fallback für Systeme ohne NetworkManager
 mkdir -p /etc/wpa_supplicant
-cat > /etc/wpa_supplicant/wpa_supplicant.conf << WPAEOF
-country=${COUNTRY}
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-
-network={
-    ssid="${SSID//\"/\\\"}"
-    psk="${PASSWORD//\"/\\\"}"
-    key_mgmt=WPA-PSK
-}
-WPAEOF
+printf 'country=%s\nctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n\nnetwork={\n    ssid="%s"\n    psk="%s"\n    key_mgmt=WPA-PSK\n}\n' \\
+    "\$WLAN_COUNTRY" "\$WLAN_SSID" "\$WLAN_PASS" > /etc/wpa_supplicant/wpa_supplicant.conf
 chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
 # power-bridge-wifi-end
 exit 0
@@ -146,7 +167,8 @@ WIFIBLOCK
 
     # Sicherstellen, dass der firstboot-Init in cmdline.txt eingetragen ist
     if ! echo "$CMDLINE" | grep -q "init=.*firstboot"; then
-        sed -i "1s|\$| init=${FIRSTBOOT_INIT}|" "$CMDLINE_FILE"
+        sed -i.bak "1s|\$| init=${FIRSTBOOT_INIT}|" "$CMDLINE_FILE"
+        rm -f "${CMDLINE_FILE}.bak"
         ok "firstboot-Init zu cmdline.txt hinzugefügt"
     fi
 
@@ -155,18 +177,7 @@ else
     echo "→ Legacy-Modus (kein firstboot in cmdline.txt – Bullseye/Buster)"
 
     WPA_FILE="$BOOT/wpa_supplicant.conf"
-    cat > "$WPA_FILE" << WPAEOF
-country=${COUNTRY}
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-
-network={
-    ssid="${SSID//\"/\\\"}"
-    psk="${PASSWORD//\"/\\\"}"
-    key_mgmt=WPA-PSK
-}
-WPAEOF
-    chmod 600 "$WPA_FILE"
+    write_wpa_conf "$WPA_FILE"
     ok "wpa_supplicant.conf geschrieben: $WPA_FILE"
 fi
 
