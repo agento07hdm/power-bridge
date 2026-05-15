@@ -283,6 +283,66 @@ func enableAPMode() {
 	log.Println("AP mode enabled")
 }
 
+// nmSystemConnectionsDir is the directory where NetworkManager stores
+// persistent connection profiles (including secrets such as psk / wep-key0).
+const nmSystemConnectionsDir = "/etc/NetworkManager/system-connections"
+
+// forgetNMWifiConnections removes ALL NetworkManager WiFi station-mode
+// connection profiles from wlan0, including their on-disk files, so that no
+// credentials (psk, wep-key0, …) survive in any secret store.
+//
+// AP-mode profiles (802-11-wireless.mode=ap) such as power-bridge-ap are
+// intentionally preserved because they are required for the setup hotspot.
+func forgetNMWifiConnections() {
+	// 1. Delete the well-known profiles we manage by name.
+	for _, name := range []string{"power-bridge-wifi", "preconfigured"} {
+		_ = exec.Command("nmcli", "connection", "delete", name).Run()
+	}
+
+	// 2. Enumerate all remaining NM connections and delete any that are
+	//    of type 802-11-wireless (wifi) and NOT in AP mode.
+	out, err := exec.Command("nmcli", "-t", "-f", "NAME,TYPE", "connection", "show").Output()
+	if err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) != 2 || parts[1] != "802-11-wireless" {
+				continue
+			}
+			name := parts[0]
+			if name == "" || name == "power-bridge-ap" {
+				continue
+			}
+			_ = exec.Command("nmcli", "connection", "delete", name).Run()
+		}
+	}
+
+	// 3. Belt-and-suspenders: remove any leftover .nmconnection files that
+	//    represent wifi station-mode profiles. nmcli delete should have handled
+	//    this already, but explicit removal ensures that secrets do not persist
+	//    even when NM was unable to delete the file (e.g. permission edge-cases).
+	entries, err := os.ReadDir(nmSystemConnectionsDir)
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			filePath := nmSystemConnectionsDir + "/" + e.Name()
+			data, readErr := os.ReadFile(filePath)
+			if readErr != nil {
+				continue
+			}
+			content := string(data)
+			// Only touch wifi connections that are NOT in AP mode.
+			if strings.Contains(content, "type=wifi") && !strings.Contains(content, "mode=ap") {
+				_ = os.Remove(filePath)
+			}
+		}
+	}
+
+	// 4. Reload NM so it drops any in-memory cached secrets.
+	_ = exec.Command("nmcli", "connection", "reload").Run()
+}
+
 // apiWifiForget clears the stored WiFi credentials and switches to AP mode so
 // the user can reconfigure the network via the setup page.
 func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
@@ -298,7 +358,7 @@ func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if hasNmcli() {
-		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-wifi").Run()
+		forgetNMWifiConnections()
 	} else {
 		// Write an empty wpa_supplicant.conf so the OS cannot reconnect to the old
 		// network after the service restarts. The country code DE matches the value
