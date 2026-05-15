@@ -138,7 +138,6 @@ func applyWifiConfig(ssid, password string) {
 			addErr = exec.Command(
 				"nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0",
 				"con-name", "power-bridge-wifi", "ssid", ssid,
-				"wifi-sec.key-mgmt", "none",
 			).Run()
 		} else {
 			addErr = exec.Command(
@@ -166,8 +165,7 @@ if [ "$CONN_STATE" != "activated" ] && [ "$DEV_STATE_CODE" != "100" ]; then
     nmcli connection show power-bridge-ap >/dev/null 2>&1 || \
         nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "%s" \
             802-11-wireless.mode ap 802-11-wireless.band bg \
-            ipv4.method shared ipv4.addresses %s/24 \
-            wifi-sec.key-mgmt none
+            ipv4.method shared ipv4.addresses %s/24
     nmcli connection up power-bridge-ap 2>/dev/null || true
 else
     logger -t power-bridge "WiFi connected via NetworkManager"
@@ -265,7 +263,6 @@ func enableAPMode() {
 			"802-11-wireless.band", "bg",
 			"ipv4.method", "shared",
 			"ipv4.addresses", apModeIP+"/24",
-			"wifi-sec.key-mgmt", "none",
 		).Run(); err != nil {
 			log.Printf("nmcli add AP connection failed: %v", err)
 		}

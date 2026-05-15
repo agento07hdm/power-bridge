@@ -174,11 +174,11 @@ if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/
                     wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$NM_PSK" 2>/dev/null || true
             elif [ -z "$NM_KEYMGMT" ] || [ "$NM_KEYMGMT" = "none" ]; then
                 nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
-                    wifi-sec.key-mgmt none 2>/dev/null || true
+                    2>/dev/null || true
             else
                 warn "Unsupported preconfigured key-mgmt '$NM_KEYMGMT' – creating open fallback profile"
                 nmcli connection add type wifi ifname wlan0 con-name power-bridge-wifi ssid "$NM_SSID" \
-                    wifi-sec.key-mgmt none 2>/dev/null || true
+                    2>/dev/null || true
             fi
             unset NM_PSK
         fi
@@ -189,8 +189,7 @@ if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/
     else
         nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "$AP_SSID" \
             802-11-wireless.mode ap 802-11-wireless.band bg \
-            ipv4.method shared ipv4.addresses ${AP_IP}/24 \
-            wifi-sec.key-mgmt none || true
+            ipv4.method shared ipv4.addresses ${AP_IP}/24 || true
         nmcli connection up power-bridge-ap 2>/dev/null || warn "Could not activate power-bridge-ap"
         ok "No preconfigured WiFi found – AP mode prepared via NetworkManager"
     fi
