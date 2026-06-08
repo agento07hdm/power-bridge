@@ -71,6 +71,15 @@ func main() {
 		go srv.RunNotifyBroadcaster(bctx)
 	}
 
+	// Network stability watchdogs.
+	// RunStartupNetworkFallback: if a WiFi SSID is configured but the Pi has no
+	// routable connection after 90 s, force AP mode so the user can recover.
+	// RunNetworkWatchdog: long-running; forces AP mode after 10 min of continuous
+	// disconnection so a lost home network never leaves the device unreachable.
+	wctx, wcancel := context.WithCancel(context.Background())
+	go srv.RunStartupNetworkFallback(wctx)
+	go srv.RunNetworkWatchdog(wctx)
+
 	go func() {
 		log.Printf("listening on %s", cfg.ListenAddr)
 		if err := srv.Listen(cfg.ListenAddr); err != nil {
@@ -96,6 +105,7 @@ func main() {
 	<-quit
 
 	log.Println("shutting down…")
+	wcancel()
 	if cancelBroadcaster != nil {
 		cancelBroadcaster()
 	}

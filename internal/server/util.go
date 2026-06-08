@@ -24,10 +24,34 @@ func uptimeSeconds() int64 {
 // serviceName is the systemd unit name used by restart/stop operations.
 const serviceName = "power-bridge"
 
-// isAPMode returns true when wlan0 has the static AP IP, meaning the bridge is
-// in Access Point / setup mode rather than connected to a home network.
+// isAPMode returns true when the bridge is running in Access Point (setup) mode.
+//
+// Primary check: ask NetworkManager which profile is currently active on wlan0.
+// This is reliable even during network transitions when the IP address may
+// temporarily be stale. Falls back to a static IP comparison for legacy stacks
+// or when NM reports no active connection (ambiguous transitional state).
 func isAPMode() bool {
-	return getLocalIP() == apModeIP
+	ip := getLocalIP()
+	// Fast path: routable non-AP IP means we are definitely in station mode.
+	if ip != "" && ip != apModeIP && !strings.HasPrefix(ip, "169.254.") {
+		return false
+	}
+	if hasNmcli() {
+		// nmcli -g GENERAL.CONNECTION device show wlan0 → active profile name
+		// e.g. "power-bridge-ap", "power-bridge-wifi", or "--" / "" when none.
+		out, err := exec.Command("nmcli", "-g", "GENERAL.CONNECTION",
+			"device", "show", "wlan0").Output()
+		if err == nil {
+			conn := strings.TrimSpace(string(out))
+			if conn == "power-bridge-ap" {
+				return true
+			}
+			if conn != "" && conn != "--" {
+				return false // some other active connection → station mode
+			}
+		}
+	}
+	return ip == apModeIP
 }
 
 // getInterfaceMAC returns the uppercase, colon-separated hardware MAC address

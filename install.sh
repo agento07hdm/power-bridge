@@ -23,7 +23,7 @@ error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || error "Please run as root: sudo bash install.sh"
 
 # ── 1. Determine latest release version ──────────────────────────────────────
-echo -e "\n${GREEN}[1/12]${NC} Fetching latest release version…"
+echo -e "\n${GREEN}[1/13]${NC} Fetching latest release version…"
 VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
 [ -n "$VERSION" ] || error "Could not determine latest release version from GitHub API"
@@ -33,7 +33,7 @@ ok "Latest version: $VERSION"
 systemctl stop power-bridge 2>/dev/null || true
 
 # ── 2. Download and install binary ────────────────────────────────────────────
-echo -e "\n${GREEN}[2/12]${NC} Downloading binary power-bridge-${VERSION}-linux-armv6…"
+echo -e "\n${GREEN}[2/13]${NC} Downloading binary power-bridge-${VERSION}-linux-armv6…"
 BINARY_URL="https://github.com/${REPO}/releases/download/${VERSION}/power-bridge-${VERSION}-linux-armv6"
 curl -fsSL "$BINARY_URL" -o "$BINARY_DEST"
 chmod 755 "$BINARY_DEST"
@@ -47,7 +47,7 @@ echo "$VERSION" > "$CONFIG_DIR/VERSION"
 ok "Version $VERSION recorded in $CONFIG_DIR/VERSION"
 
 # ── 3. System packages ────────────────────────────────────────────────────────
-echo -e "\n${GREEN}[3/12]${NC} Installing required packages…"
+echo -e "\n${GREEN}[3/13]${NC} Installing required packages…"
 apt-get update -qq
 apt-get install -y --no-install-recommends \
     avahi-daemon \
@@ -61,7 +61,7 @@ fi
 ok "Packages installed"
 
 # ── 4. Config directory & default config ─────────────────────────────────────
-echo -e "\n${GREEN}[4/12]${NC} Setting up config directory…"
+echo -e "\n${GREEN}[4/13]${NC} Setting up config directory…"
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
     cat > "$CONFIG_DIR/config.yaml" << 'EOF'
@@ -87,7 +87,7 @@ else
 fi
 
 # ── 5. systemd service (embedded heredoc) ────────────────────────────────────
-echo -e "\n${GREEN}[5/12]${NC} Installing systemd service…"
+echo -e "\n${GREEN}[5/13]${NC} Installing systemd service…"
 cat > /etc/systemd/system/power-bridge.service << 'EOF'
 [Unit]
 Description=power-bridge – powerfox poweropti → virtual Shelly Pro 3EM
@@ -126,7 +126,7 @@ systemctl enable power-bridge.service
 ok "Systemd service installed and enabled"
 
 # ── 6. Avahi service (embedded heredoc) ──────────────────────────────────────
-echo -e "\n${GREEN}[6/12]${NC} Registering mDNS service with Avahi…"
+echo -e "\n${GREEN}[6/13]${NC} Registering mDNS service with Avahi…"
 mkdir -p "$AVAHI_SVC_DIR"
 cat > "$AVAHI_SVC_DIR/power-bridge.service" << 'EOF'
 <?xml version="1.0" standalone='no'?>
@@ -154,7 +154,7 @@ systemctl restart avahi-daemon 2>/dev/null || true
 ok "Avahi mDNS service registered"
 
 # ── 7. NetworkManager WLAN management ─────────────────────────────────────────
-echo -e "\n${GREEN}[7/12]${NC} Configuring wlan0 under NetworkManager…"
+echo -e "\n${GREEN}[7/13]${NC} Configuring wlan0 under NetworkManager…"
 if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
     rm -f /etc/NetworkManager/conf.d/power-bridge-unmanaged.conf
     systemctl reload NetworkManager 2>/dev/null || true
@@ -198,7 +198,7 @@ else
 fi
 
 # ── 8. AP stack handling ──────────────────────────────────────────────────────
-echo -e "\n${GREEN}[8/12]${NC} Handling AP stack services…"
+echo -e "\n${GREEN}[8/13]${NC} Handling AP stack services…"
 if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
     systemctl disable hostapd dnsmasq 2>/dev/null || true
     systemctl stop hostapd dnsmasq 2>/dev/null || true
@@ -252,7 +252,7 @@ EOF
 fi
 
 # ── 9. Install prepare-image.sh ───────────────────────────────────────────────
-echo -e "\n${GREEN}[9/12]${NC} Installing prepare-image.sh…"
+echo -e "\n${GREEN}[9/13]${NC} Installing prepare-image.sh…"
 mkdir -p "$SHARE_DIR"
 cat > "$SHARE_DIR/prepare-image.sh" << 'PREPARE_EOF'
 #!/usr/bin/env bash
@@ -305,13 +305,78 @@ EOF
 fi
 echo "stable" > /etc/power-bridge/update-channel 2>/dev/null || true
 
-step "Clearing wpa_supplicant WiFi credentials…"
+step "Clearing WiFi credentials from all storage locations…"
+
+# 1. wpa_supplicant (Bullseye and older, or legacy fallback)
+mkdir -p /etc/wpa_supplicant
 cat > /etc/wpa_supplicant/wpa_supplicant.conf << 'EOF'
 country=DE
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 EOF
-ok "wpa_supplicant.conf cleared (no stored networks)"
+chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
+ok "wpa_supplicant.conf cleared"
+
+# 2. NetworkManager connection profiles (Bookworm / NM-managed systems).
+#    NM stores the PSK in plain text inside .nmconnection files.
+#    AP-mode profiles (mode=ap) are preserved so the first-boot hotspot works.
+NM_DIR="/etc/NetworkManager/system-connections"
+if [ -d "$NM_DIR" ]; then
+    REMOVED=0
+    for f in "$NM_DIR"/*.nmconnection "$NM_DIR"/*.conf "$NM_DIR"/*; do
+        [ -f "$f" ] || continue
+        grep -q "mode=ap" "$f" 2>/dev/null && continue
+        if grep -q "type=wifi" "$f" 2>/dev/null; then
+            rm -f "$f"
+            REMOVED=$((REMOVED + 1))
+        fi
+    done
+    if [ "$REMOVED" -gt 0 ]; then
+        nmcli connection reload 2>/dev/null || true
+        ok "Removed $REMOVED NetworkManager WiFi profile(s) from $NM_DIR"
+    else
+        ok "No NetworkManager WiFi station profiles found in $NM_DIR"
+    fi
+fi
+
+# 3. firstrun.sh on the boot partition (written by Raspberry Pi Imager).
+#    This file may contain the SSID and password entered during flashing.
+for BOOT_DIR in /boot/firmware /boot; do
+    if [ -f "$BOOT_DIR/firstrun.sh" ]; then
+        rm -f "$BOOT_DIR/firstrun.sh"
+        for CMDLINE in "$BOOT_DIR/cmdline.txt"; do
+            [ -f "$CMDLINE" ] || continue
+            sed -i 's| systemd.run=[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+            sed -i 's| init=[^ ]*firstboot[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+        done
+        ok "Removed firstrun.sh (and firstboot hook) from $BOOT_DIR"
+    fi
+done
+
+# 4. boot-counter reset (so the first user does not trigger a spurious reset).
+rm -f /etc/power-bridge/boot-counter 2>/dev/null || true
+ok "boot-counter cleared"
+
+# 5. Verify: report any remaining files that still mention a PSK / password.
+echo ""
+echo "  Verifying no credentials remain on disk…"
+LEAKS=0
+for CHECK_FILE in \
+        /etc/wpa_supplicant/wpa_supplicant.conf \
+        /etc/NetworkManager/system-connections/*.nmconnection \
+        /etc/NetworkManager/system-connections/*.conf \
+        /boot/firmware/firstrun.sh /boot/firstrun.sh; do
+    [ -f "$CHECK_FILE" ] || continue
+    if grep -qiE "psk=.+|password=.+|wifi_password: .+" "$CHECK_FILE" 2>/dev/null; then
+        warn "POSSIBLE CREDENTIAL LEAK in: $CHECK_FILE"
+        LEAKS=$((LEAKS + 1))
+    fi
+done
+if [ "$LEAKS" -eq 0 ]; then
+    ok "Verification passed – no credentials found in checked files"
+else
+    warn "$LEAKS file(s) may still contain credentials – review before imaging!"
+fi
 
 step "Removing SSH host keys…"
 rm -f /etc/ssh/ssh_host_*
@@ -403,7 +468,7 @@ chmod 755 "$SHARE_DIR/prepare-image.sh"
 ok "prepare-image.sh installed to $SHARE_DIR/prepare-image.sh"
 
 # ── 10. Install OTA update scripts ────────────────────────────────────────────
-echo -e "\n${GREEN}[10/12]${NC} Installing OTA update scripts…"
+echo -e "\n${GREEN}[10/13]${NC} Installing OTA update scripts…"
 mkdir -p "$SHARE_DIR"
 
 cat > "$SHARE_DIR/update.sh" << 'UPDATE_EOF'
@@ -578,59 +643,123 @@ ROLLBACK_EOF
 chmod 755 "$SHARE_DIR/rollback.sh"
 ok "rollback.sh installed to $SHARE_DIR/rollback.sh"
 
-# ── 11. Install power-bridge-update.service ──────────────────────────────────
-echo -e "\n${GREEN}[11/12]${NC} Installing power-bridge-update.service…"
-cat > /etc/systemd/system/power-bridge-update.service << 'EOF'
-[Unit]
-Description=power-bridge OTA update – check GitHub Releases at boot
-Documentation=https://github.com/fedzzito/power-bridge
-Before=power-bridge.service
-After=network-online.target
-Wants=network-online.target
+# ── 11. Install boot-watchdog (Stecker-Ziehen Reset) ─────────────────────────
+echo -e "\n${GREEN}[11/13]${NC} Installing boot-watchdog…"
+mkdir -p "$SHARE_DIR"
 
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/local/share/power-bridge/update.sh
-TimeoutStartSec=180
-SuccessExitStatus=0 1
+cat > "$SHARE_DIR/boot-watchdog.sh" << 'WATCHDOG_EOF'
+#!/usr/bin/env bash
+# =============================================================================
+# power-bridge boot-watchdog.sh
+#
+# Counts rapid successive reboots. After MAX_RESETS boots within STABLE_SECS
+# seconds the Pi forces AP mode and clears WiFi credentials.
+#
+# User procedure: pull the power plug 3 times, each time waiting ~15 seconds
+# (enough for the Pi to boot and write the counter). The green ACT LED blinks
+# N times after each rapid boot to confirm the count was registered:
+#   1 blink  = first rapid boot counted  (2 more needed)
+#   2 blinks = second rapid boot counted (1 more needed)
+#   10 rapid blinks = reset triggered, AP mode active
+#
+# Called by power-bridge-boot-watchdog.service at every boot.
+# =============================================================================
+COUNTER_FILE="/etc/power-bridge/boot-counter"
+CONFIG_FILE="/etc/power-bridge/config.yaml"
+AP_SSID="power-bridge"
+AP_IP="192.168.4.1"
+MAX_RESETS=3
+STABLE_SECS=60
 
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=power-bridge-update
+# ── LED helper ────────────────────────────────────────────────────────────────
+# Blinks the Pi ACT/activity LED N times, then restores the original trigger.
+# Works on Pi Zero W (led0) and Pi Zero 2 W / Pi 4 (ACT). Silently skipped
+# when the LED sysfs path is not available.
+blink_led() {
+    local n=$1 delay=${2:-0.25}
+    local led=""
+    for path in /sys/class/leds/ACT /sys/class/leds/led0 /sys/class/leds/activity; do
+        [ -d "$path" ] && led="$path" && break
+    done
+    [ -n "$led" ] || return 0
+    local orig_trigger
+    orig_trigger=$(cat "$led/trigger" 2>/dev/null | grep -oP '(?<=\[)[^\]]+' || echo "mmc0")
+    echo none > "$led/trigger" 2>/dev/null || return 0
+    local i
+    for i in $(seq 1 "$n"); do
+        echo 1 > "$led/brightness" 2>/dev/null
+        sleep "$delay"
+        echo 0 > "$led/brightness" 2>/dev/null
+        sleep "$delay"
+    done
+    echo "$orig_trigger" > "$led/trigger" 2>/dev/null || true
+}
 
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable power-bridge-update.service
-ok "power-bridge-update.service installed and enabled"
+# Read current counter (default 0), increment, and persist immediately.
+COUNT=$(cat "$COUNTER_FILE" 2>/dev/null | tr -cd '0-9')
+COUNT=${COUNT:-0}
+COUNT=$((COUNT + 1))
+echo "$COUNT" > "$COUNTER_FILE"
 
-# ── 12. Enable and start services ─────────────────────────────────────────────
-echo -e "\n${GREEN}[12/12]${NC} Starting services…"
-if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
-    if ! nmcli -t -f NAME connection show --active | grep -qx "power-bridge-wifi"; then
-        nmcli connection up power-bridge-ap 2>/dev/null || warn "power-bridge-ap failed to start"
+logger -t power-bridge-watchdog "boot-counter=$COUNT threshold=$MAX_RESETS stable=${STABLE_SECS}s"
+
+if [ "$COUNT" -ge "$MAX_RESETS" ]; then
+    logger -t power-bridge-watchdog "Reset triggered (${COUNT} rapid boots) – forcing AP mode"
+    echo "0" > "$COUNTER_FILE"
+
+    # Reset config to unconfigured defaults.
+    if [ -f "$CONFIG_FILE" ]; then
+        cat > "$CONFIG_FILE" << 'CFGEOF'
+# power-bridge configuration
+# Edit this file or use the web setup UI at http://192.168.4.1 (AP mode)
+
+wifi_ssid: ""
+wifi_password: ""
+poweropti_ip: ""
+poweropti_api_key: ""
+shelly_mac: "AA:BB:CC:DD:EE:FF"
+hostname: "shellypro3em-poweropti"
+device_profile: "standard"
+phase_mode: "equal"
+poll_interval_sec: 3
+stale_timeout_sec: 30
+listen_addr: ":80"
+configured: false
+CFGEOF
     fi
-else
-    systemctl is-active dhcpcd 2>/dev/null && systemctl restart dhcpcd || true
-    systemctl restart hostapd 2>/dev/null || warn "hostapd failed to start (may need reboot)"
-    systemctl restart dnsmasq 2>/dev/null || warn "dnsmasq failed to start"
+
+    # Clear NetworkManager WiFi station profiles.
+    if command -v nmcli >/dev/null 2>&1; then
+        nmcli connection delete power-bridge-wifi 2>/dev/null || true
+        nmcli connection show power-bridge-ap >/dev/null 2>&1 || \
+            nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap \
+                ssid "$AP_SSID" 802-11-wireless.mode ap \
+                802-11-wireless.band bg ipv4.method shared \
+                ipv4.addresses "$AP_IP/24" 2>/dev/null || true
+        nmcli connection modify power-bridge-ap connection.autoconnect yes 2>/dev/null || true
+        nmcli connection up power-bridge-ap 2>/dev/null || true
+    else
+        systemctl stop wpa_supplicant@wlan0 2>/dev/null || true
+        systemctl stop wpa_supplicant 2>/dev/null || true
+        systemctl start hostapd 2>/dev/null || true
+        systemctl start dnsmasq 2>/dev/null || true
+    fi
+
+    # 10 rapid blinks = reset done, AP active.
+    blink_led 10 0.1
+
+    sleep 3
+    systemctl restart power-bridge 2>/dev/null || true
+    logger -t power-bridge-watchdog "AP reset complete – SSID: $AP_SSID (http://$AP_IP)"
+    exit 0
 fi
-systemctl start power-bridge.service 2>/dev/null || warn "power-bridge failed to start"
 
-# ── Done ──────────────────────────────────────────────────────────────────────
-IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+# Not yet at threshold: blink COUNT times so the user sees the count was registered.
+blink_led "$COUNT"
 
-echo ""
-echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║  power-bridge ${VERSION} installed successfully!             ${NC}"
-echo -e "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║  Access Point: ${AP_SSID}                     ${NC}"
-echo -e "${GREEN}║  Setup URL:    http://${AP_IP}                         ${NC}"
-echo -e "${GREEN}║  Device IP:    http://${IP}                           ${NC}"
-echo -e "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║  OTA updates:  automatic at every boot (stable channel)      ${NC}"
-echo -e "${GREEN}║  Logs:         journalctl -u power-bridge-update             ${NC}"
-echo -e "${GREEN}║  Rollback:     sudo bash $SHARE_DIR/rollback.sh${NC}"
-echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
+# Sleep until the stable window expires, then clear counter.
+sleep "$STABLE_SECS"
+echo "0" > "$COUNTER_FILE"
+logger -t power-bridge-watchdog "Stable after ${STABLE_SECS}s – counter reset"
+WATCHDOG_EOF
+chm

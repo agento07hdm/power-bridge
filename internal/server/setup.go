@@ -130,7 +130,15 @@ func (s *Server) setupSave(w http.ResponseWriter, r *http.Request) {
 // wpa_supplicant flow when nmcli is unavailable.
 func applyWifiConfig(ssid, password string) {
 	if hasNmcli() {
-		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
+		// Deactivate the AP profile but keep it on disk as a safety net.
+		// If WiFi fails to connect the check script restores it; if it succeeds
+		// the script removes it. This eliminates the previous race condition
+		// where the Pi had no network for up to wifiConnectionTimeoutSecs seconds.
+		_ = exec.Command("nmcli", "connection", "modify",
+			"power-bridge-ap", "connection.autoconnect", "no").Run()
+		_ = exec.Command("nmcli", "connection", "down", "power-bridge-ap").Run()
+
+		// (Re)create the WiFi station profile.
 		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-wifi").Run()
 
 		var addErr error
@@ -147,40 +155,52 @@ func applyWifiConfig(ssid, password string) {
 			).Run()
 		}
 		if addErr != nil {
-			log.Printf("nmcli add wifi connection failed: %v", addErr)
+			log.Printf("nmcli add wifi connection failed: %v – restoring AP mode", addErr)
+			_ = exec.Command("nmcli", "connection", "modify",
+				"power-bridge-ap", "connection.autoconnect", "yes").Run()
+			_ = exec.Command("nmcli", "connection", "up", "power-bridge-ap").Run()
 			return
 		}
 		if err := exec.Command("nmcli", "connection", "up", "power-bridge-wifi").Run(); err != nil {
-			log.Printf("nmcli up power-bridge-wifi failed: %v", err)
+			log.Printf("nmcli up power-bridge-wifi failed (check script will decide): %v", err)
 		}
 
+		// Detached check script: waits wifiConnectionTimeoutSecs, then decides.
+		// Success criteria: NM reports "activated" OR wlan0 has a routable IP.
+		// On failure: delete WiFi profile, restore AP fallback profile.
 		checkScript := fmt.Sprintf(`#!/bin/sh
 sleep %d
-CONN_STATE=$(nmcli -g GENERAL.STATE connection show power-bridge-wifi 2>/dev/null || true)
-DEV_STATE=$(nmcli -g GENERAL.STATE device show wlan0 2>/dev/null || true)
-DEV_STATE_CODE=$(echo "$DEV_STATE" | awk '{print $1}')
-if [ "$CONN_STATE" != "activated" ] && [ "$DEV_STATE_CODE" != "100" ]; then
-    logger -t power-bridge "WiFi connection timed out after %ds – reverting to AP mode"
+CONN=$(nmcli -g GENERAL.STATE connection show power-bridge-wifi 2>/dev/null || echo "")
+IP=$(ip -4 addr show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1 | head -1)
+if [ "$CONN" = "activated" ] || { [ -n "$IP" ] && [ "$IP" != "%s" ] && [ "${IP#169.254}" = "$IP" ]; }; then
+    logger -t power-bridge "WiFi connected (conn=$CONN ip=$IP) – removing AP fallback profile"
+    nmcli connection delete power-bridge-ap 2>/dev/null || true
+else
+    logger -t power-bridge "WiFi failed after %ds (conn=$CONN ip=$IP) – restoring AP mode"
     nmcli connection delete power-bridge-wifi 2>/dev/null || true
-    nmcli connection show power-bridge-ap >/dev/null 2>&1 || \
+    nmcli connection modify power-bridge-ap connection.autoconnect yes 2>/dev/null || \
         nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "%s" \
             802-11-wireless.mode ap 802-11-wireless.band bg \
-            ipv4.method shared ipv4.addresses %s/24
+            ipv4.method shared ipv4.addresses %s/24 2>/dev/null || true
     nmcli connection up power-bridge-ap 2>/dev/null || true
-else
-    logger -t power-bridge "WiFi connected via NetworkManager"
 fi
 systemctl restart power-bridge
-`, wifiConnectionTimeoutSecs, wifiConnectionTimeoutSecs, apSSID, apModeIP)
+`, wifiConnectionTimeoutSecs, apModeIP, wifiConnectionTimeoutSecs, apSSID, apModeIP)
 		scriptPath := "/etc/power-bridge/wifi-check.sh"
 		if err := os.WriteFile(scriptPath, []byte(checkScript), 0o700); err != nil {
-			log.Printf("wifi-check script write failed: %v – falling back to direct restart", err)
+			log.Printf("wifi-check script write failed: %v – restoring AP mode and restarting", err)
+			_ = exec.Command("nmcli", "connection", "modify",
+				"power-bridge-ap", "connection.autoconnect", "yes").Run()
+			_ = exec.Command("nmcli", "connection", "up", "power-bridge-ap").Run()
 			_ = exec.Command("systemctl", "restart", serviceName).Run()
 			return
 		}
 		cmd := exec.Command("setsid", "/bin/sh", scriptPath)
 		if err := cmd.Start(); err != nil {
-			log.Printf("wifi-check script launch failed: %v – falling back to direct restart", err)
+			log.Printf("wifi-check script launch failed: %v – restoring AP mode and restarting", err)
+			_ = exec.Command("nmcli", "connection", "modify",
+				"power-bridge-ap", "connection.autoconnect", "yes").Run()
+			_ = exec.Command("nmcli", "connection", "up", "power-bridge-ap").Run()
 			_ = exec.Command("systemctl", "restart", serviceName).Run()
 		}
 		return

@@ -74,14 +74,84 @@ fi
 # Reset update channel to stable
 echo "stable" > /etc/power-bridge/update-channel 2>/dev/null || true
 
-# ── 2b. Clear WiFi credentials from wpa_supplicant ───────────────────────────
-step "Clearing wpa_supplicant WiFi credentials…"
+# ── 2b. Clear WiFi credentials – all storage locations ───────────────────────
+step "Clearing WiFi credentials from all storage locations…"
+
+# 1. wpa_supplicant (Bullseye and older, or legacy fallback)
+mkdir -p /etc/wpa_supplicant
 cat > /etc/wpa_supplicant/wpa_supplicant.conf << 'EOF'
 country=DE
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 EOF
-ok "wpa_supplicant.conf cleared (no stored networks)"
+chmod 600 /etc/wpa_supplicant/wpa_supplicant.conf
+ok "wpa_supplicant.conf cleared"
+
+# 2. NetworkManager connection profiles (Bookworm / NM-managed systems)
+#    NM stores the PSK in plain text inside .nmconnection files.
+#    Only WiFi station-mode profiles are removed; AP profiles (mode=ap)
+#    such as power-bridge-ap are preserved so the first-boot hotspot works.
+NM_DIR="/etc/NetworkManager/system-connections"
+if [ -d "$NM_DIR" ]; then
+    REMOVED=0
+    for f in "$NM_DIR"/*.nmconnection "$NM_DIR"/*.conf "$NM_DIR"/*; do
+        [ -f "$f" ] || continue
+        # Skip AP-mode profiles – they contain no user credentials
+        if grep -q "mode=ap" "$f" 2>/dev/null; then
+            continue
+        fi
+        # Remove any WiFi station-mode profile
+        if grep -q "type=wifi" "$f" 2>/dev/null; then
+            rm -f "$f"
+            REMOVED=$((REMOVED + 1))
+        fi
+    done
+    if [ "$REMOVED" -gt 0 ]; then
+        # Reload NM so it drops in-memory cached secrets
+        nmcli connection reload 2>/dev/null || true
+        ok "Removed $REMOVED NetworkManager WiFi profile(s) from $NM_DIR"
+    else
+        ok "No NetworkManager WiFi station profiles found in $NM_DIR"
+    fi
+fi
+
+# 3. firstrun.sh on the boot partition (written by Raspberry Pi Imager)
+#    This file may contain the SSID and password entered during flashing.
+#    It is consumed and left on disk by the firstboot mechanism – remove it.
+for BOOT_DIR in /boot/firmware /boot; do
+    if [ -f "$BOOT_DIR/firstrun.sh" ]; then
+        rm -f "$BOOT_DIR/firstrun.sh"
+        # Also remove the firstboot init= hook from cmdline.txt so the next
+        # first-boot does not try to run a now-missing firstrun.sh.
+        for CMDLINE in "$BOOT_DIR/cmdline.txt"; do
+            [ -f "$CMDLINE" ] || continue
+            sed -i 's| systemd.run=[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+            sed -i 's| init=[^ ]*firstboot[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+        done
+        ok "Removed firstrun.sh (and firstboot hook) from $BOOT_DIR"
+    fi
+done
+
+# 4. Verify: report any remaining files that still mention a PSK / password
+echo ""
+echo "  Verifying no credentials remain on disk…"
+LEAKS=0
+for CHECK_FILE in \
+        /etc/wpa_supplicant/wpa_supplicant.conf \
+        /etc/NetworkManager/system-connections/*.nmconnection \
+        /etc/NetworkManager/system-connections/*.conf \
+        /boot/firmware/firstrun.sh /boot/firstrun.sh; do
+    [ -f "$CHECK_FILE" ] || continue
+    if grep -qiE "psk=.+|password=.+|wifi_password: .+" "$CHECK_FILE" 2>/dev/null; then
+        warn "POSSIBLE CREDENTIAL LEAK in: $CHECK_FILE"
+        LEAKS=$((LEAKS + 1))
+    fi
+done
+if [ "$LEAKS" -eq 0 ]; then
+    ok "Verification passed – no credentials found in checked files"
+else
+    warn "$LEAKS file(s) may still contain credentials – review before imaging!"
+fi
 
 # ── 3. Remove SSH host keys (regenerated on first boot) ───────────────────────
 step "Removing SSH host keys…"
@@ -140,12 +210,16 @@ find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
 find /var/log -type f -name "*.[0-9]" -delete 2>/dev/null || true
 ok "Log files cleaned"
 
-# ── 10. Remove DHCP leases ────────────────────────────────────────────────────
-step "Removing DHCP leases…"
+# ── 10. Remove DHCP leases and runtime state ──────────────────────────────────
+step "Removing DHCP leases and runtime state…"
 rm -f /var/lib/dhcp/*.leases 2>/dev/null || true
 rm -f /var/lib/dhcpcd5/*.lease 2>/dev/null || true
 rm -f /var/lib/dhcpcd/*.lease 2>/dev/null || true
 ok "DHCP leases removed"
+# Clear the boot-counter so the first user does not accidentally trigger the
+# Stecker-Ziehen Reset on their very first three boot cycles.
+rm -f /etc/power-bridge/boot-counter 2>/dev/null || true
+ok "boot-counter cleared"
 
 # ── 11. Clear bash / shell history ───────────────────────────────────────────
 step "Clearing shell history…"
