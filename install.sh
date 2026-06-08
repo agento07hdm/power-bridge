@@ -762,4 +762,80 @@ sleep "$STABLE_SECS"
 echo "0" > "$COUNTER_FILE"
 logger -t power-bridge-watchdog "Stable after ${STABLE_SECS}s – counter reset"
 WATCHDOG_EOF
-chm
+chmod +x "$SHARE_DIR/boot-watchdog.sh"
+
+cat > /etc/systemd/system/power-bridge-boot-watchdog.service << 'EOF'
+[Unit]
+Description=power-bridge boot watchdog (Stecker-Ziehen Reset)
+After=power-bridge.service
+BindsTo=power-bridge.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/share/power-bridge/boot-watchdog.sh
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable power-bridge-boot-watchdog.service 2>/dev/null || true
+ok "boot-watchdog installed and enabled"
+
+# ── 12. Install power-bridge-update.service ───────────────────────────────────────────
+echo -e "\n${GREEN}[12/13]${NC} Installing power-bridge-update.service…"
+cat > /etc/systemd/system/power-bridge-update.service << 'EOF'
+[Unit]
+Description=power-bridge OTA update – check GitHub Releases at boot
+Documentation=https://github.com/fedzzito/power-bridge
+Before=power-bridge.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/share/power-bridge/update.sh
+TimeoutStartSec=180
+SuccessExitStatus=0 1
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=power-bridge-update
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable power-bridge-update.service
+ok "power-bridge-update.service installed and enabled"
+
+# ── 13. Enable and start services ───────────────────────────────────────────
+echo -e "\n${GREEN}[13/13]${NC} Starting services…"
+if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/null 2>&1; then
+    if ! nmcli -t -f NAME connection show --active | grep -qx "power-bridge-wifi"; then
+        nmcli connection up power-bridge-ap 2>/dev/null || warn "power-bridge-ap failed to start"
+    fi
+else
+    systemctl is-active dhcpcd 2>/dev/null && systemctl restart dhcpcd || true
+    systemctl restart hostapd 2>/dev/null || warn "hostapd failed to start (may need reboot)"
+    systemctl restart dnsmasq 2>/dev/null || warn "dnsmasq failed to start"
+fi
+systemctl start power-bridge.service 2>/dev/null || warn "power-bridge failed to start"
+
+# ── Done ──────────────────────────────────────────────────────────────────────────────────
+IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+
+echo ""
+echo -e "${GREEN}╔═════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║  power-bridge ${VERSION} installed successfully!             ${NC}"
+echo -e "${GREEN}╠════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${GREEN}║  Access Point: ${AP_SSID}                     ${NC}"
+echo -e "${GREEN}║  Setup URL:    http://${AP_IP}                         ${NC}"
+echo -e "${GREEN}║  Device IP:    http://${IP}                           ${NC}"
+echo -e "${GREEN}╠════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${GREEN}║  OTA updates:  automatic at every boot (stable channel)      ${NC}"
+echo -e "${GREEN}║  Logs:         journalctl -u power-bridge-update             ${NC}"
+echo -e "${GREEN}║  Rollback:     sudo bash $SHARE_DIR/rollback.sh${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+echo ""
