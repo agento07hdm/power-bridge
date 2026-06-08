@@ -19,7 +19,8 @@
 #   2. sudo shutdown -h now
 #   3. Create image with USBImager (Windows/macOS/Linux)
 #   4. Optional: shrink with PiShrink
-#        pishrink.sh -za power-bridge.img
+#        pishrink.sh -zas power-bridge.img
+#        (-s skips the auto-resize hook; required for Bookworm to avoid boot loop)
 #
 # USBImager:   https://bztsrc.gitlab.io/usbimager/
 # PiShrink:    https://github.com/Drewsif/PiShrink
@@ -127,6 +128,7 @@ for BOOT_DIR in /boot/firmware /boot; do
             [ -f "$CMDLINE" ] || continue
             sed -i 's| systemd.run=[^ ]*||g' "$CMDLINE" 2>/dev/null || true
             sed -i 's| init=[^ ]*firstboot[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+            sed -i 's| init=[^ ]*init_resize[^ ]*||g' "$CMDLINE" 2>/dev/null || true
         done
         ok "Removed firstrun.sh (and firstboot hook) from $BOOT_DIR"
     fi
@@ -206,65 +208,4 @@ journalctl --vacuum-time=1s 2>/dev/null || true
 find /var/log -type f \( -name "*.log" -o -name "syslog" \
     -o -name "messages" -o -name "auth.log" -o -name "kern.log" \) \
     -exec truncate -s 0 {} \; 2>/dev/null || true
-find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
-find /var/log -type f -name "*.[0-9]" -delete 2>/dev/null || true
-ok "Log files cleaned"
-
-# ── 10. Remove DHCP leases and runtime state ──────────────────────────────────
-step "Removing DHCP leases and runtime state…"
-rm -f /var/lib/dhcp/*.leases 2>/dev/null || true
-rm -f /var/lib/dhcpcd5/*.lease 2>/dev/null || true
-rm -f /var/lib/dhcpcd/*.lease 2>/dev/null || true
-ok "DHCP leases removed"
-# Clear the boot-counter so the first user does not accidentally trigger the
-# Stecker-Ziehen Reset on their very first three boot cycles.
-rm -f /etc/power-bridge/boot-counter 2>/dev/null || true
-ok "boot-counter cleared"
-
-# ── 11. Clear bash / shell history ───────────────────────────────────────────
-step "Clearing shell history…"
-rm -f /root/.bash_history /home/pi/.bash_history 2>/dev/null || true
-history -c 2>/dev/null || true
-ok "Shell history cleared"
-
-# ── 12. Ensure first-boot filesystem resize is enabled ───────────────────────
-step "Checking first-boot resize configuration…"
-CMDLINE_FILE=""
-for f in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
-    [ -f "$f" ] && CMDLINE_FILE="$f" && break
-done
-
-if [ -n "$CMDLINE_FILE" ]; then
-    if ! grep -q "init=/usr/lib/raspi-config/init_resize.sh" "$CMDLINE_FILE" 2>/dev/null; then
-        sed -i '1s|$| init=/usr/lib/raspi-config/init_resize.sh|' "$CMDLINE_FILE"
-        ok "First-boot resize hook added to $CMDLINE_FILE"
-    else
-        ok "First-boot resize hook already present in $CMDLINE_FILE"
-    fi
-else
-    warn "cmdline.txt not found – first-boot resize may not be configured"
-fi
-
-# ── 13. Fill free space with zeros (maximises .img compression) ──────────────
-step "Filling free disk space with zeros for better compression…"
-echo "  (This may take a few minutes on a large SD card)"
-ZERO_FILE="/ZERO_TEMP_$$"
-dd if=/dev/zero of="$ZERO_FILE" bs=1M 2>/dev/null || true
-sync
-rm -f "$ZERO_FILE"
-sync
-ok "Free space zeroed"
-
-# ── Done ──────────────────────────────────────────────────────────────────────
-echo ""
-echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✓ Image preparation complete!${NC}"
-echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"
-echo ""
-echo "Next steps:"
-echo "  1. sudo shutdown -h now"
-echo "  2. Remove SD card and create image with USBImager"
-echo "     https://bztsrc.gitlab.io/usbimager/"
-echo "  3. Optional: shrink with PiShrink"
-echo "     sudo pishrink.sh -za power-bridge.img"
-echo ""
+find /var/log -type f -name "*.gz" -delete 2>/dev/null ||
