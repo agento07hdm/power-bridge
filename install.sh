@@ -427,20 +427,17 @@ rm -f /root/.bash_history /home/pi/.bash_history 2>/dev/null || true
 history -c 2>/dev/null || true
 ok "Shell history cleared"
 
-step "Checking first-boot resize configuration…"
-CMDLINE_FILE=""
-for f in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
-    [ -f "$f" ] && CMDLINE_FILE="$f" && break
+step "Removing boot-time hooks from cmdline.txt…"
+# Remove the raspi-config resize hook and Pi Imager firstrun hooks.
+# The resize hook causes a boot loop when the image is re-flashed because
+# the PARTUUID no longer matches on the new card (Bookworm issue).
+for CMDLINE_FILE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
+    [ -f "$CMDLINE_FILE" ] || continue
+    sed -i 's| systemd.run=[^ ]*||g' "$CMDLINE_FILE" 2>/dev/null || true
+    sed -i 's| init=[^ ]*firstboot[^ ]*||g' "$CMDLINE_FILE" 2>/dev/null || true
+    sed -i 's| init=[^ ]*init_resize[^ ]*||g' "$CMDLINE_FILE" 2>/dev/null || true
+    ok "Boot hooks removed from $CMDLINE_FILE"
 done
-if [ -n "$CMDLINE_FILE" ]; then
-    if ! grep -q "init=/usr/lib/raspi-config/init_resize.sh" "$CMDLINE_FILE" 2>/dev/null; then
-        sed -i '1s|$| init=/usr/lib/raspi-config/init_resize.sh|' "$CMDLINE_FILE"        ok "First-boot resize hook added to $CMDLINE_FILE"
-    else
-        ok "First-boot resize hook already present"
-    fi
-else
-    warn "cmdline.txt not found – first-boot resize may not be configured"
-fi
 
 step "Filling free disk space with zeros for better compression…"
 echo "  (This may take a few minutes on a large SD card)"
