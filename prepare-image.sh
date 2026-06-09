@@ -122,16 +122,18 @@ fi
 for BOOT_DIR in /boot/firmware /boot; do
     if [ -f "$BOOT_DIR/firstrun.sh" ]; then
         rm -f "$BOOT_DIR/firstrun.sh"
-        # Also remove the firstboot init= hook from cmdline.txt so the next
-        # first-boot does not try to run a now-missing firstrun.sh.
-        for CMDLINE in "$BOOT_DIR/cmdline.txt"; do
-            [ -f "$CMDLINE" ] || continue
-            sed -i 's| systemd.run=[^ ]*||g' "$CMDLINE" 2>/dev/null || true
-            sed -i 's| init=[^ ]*firstboot[^ ]*||g' "$CMDLINE" 2>/dev/null || true
-            sed -i 's| init=[^ ]*init_resize[^ ]*||g' "$CMDLINE" 2>/dev/null || true
-        done
-        ok "Removed firstrun.sh (and firstboot hook) from $BOOT_DIR"
+        ok "Removed firstrun.sh from $BOOT_DIR"
     fi
+    # Always clean cmdline.txt: remove Pi Imager firstrun hook AND raspi-config
+    # resize hook. The resize hook causes a boot loop when the image is re-flashed
+    # because the PARTUUID no longer matches on the new card (Bookworm issue).
+    for CMDLINE in "$BOOT_DIR/cmdline.txt"; do
+        [ -f "$CMDLINE" ] || continue
+        sed -i 's| systemd.run=[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+        sed -i 's| init=[^ ]*firstboot[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+        sed -i 's| init=[^ ]*init_resize[^ ]*||g' "$CMDLINE" 2>/dev/null || true
+        ok "Cleaned boot hooks from $CMDLINE"
+    done
 done
 
 # 4. Verify: report any remaining files that still mention a PSK / password
