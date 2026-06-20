@@ -735,14 +735,34 @@ func reloadDnsmasq() {
 // ensureAPDNSOnStartup writes the captive-portal DNS catch-all config and
 // signals dnsmasq to reload when the service starts up already in AP mode.
 // Call once at startup; it is a no-op when not in AP mode.
-func EnsureAPDNSOnStartup() {
-	if !isAPMode() {
+// EnsureAPModeOnStartup ensures the device is reachable at startup.
+// If wlan0 has no active connection (disconnected) and no home WiFi SSID is
+// configured, or if wlan0 is already the AP IP, enableAPMode() is called so
+// the setup hotspot is always available after a reboot on a fresh device.
+func EnsureAPModeOnStartup(wifiSSID string) {
+	wlan0IP := getWlan0IP()
+	alreadyAP := isAPMode()
+
+	// Already broadcasting the AP – just ensure DNS config is fresh.
+	if alreadyAP || wlan0IP == apModeIP {
+		log.Println("startup: AP mode active – ensuring DNS catch-all config")
+		writeAPDNSConf(nmDnsmasqSharedDir)
+		writeAPDNSConf(standaloneDnsmasqDir)
+		time.Sleep(2 * time.Second)
+		reloadDnsmasq()
 		return
 	}
-	log.Println("AP mode detected on startup – ensuring DNS catch-all config")
-	writeAPDNSConf(nmDnsmasqSharedDir)
-	writeAPDNSConf(standaloneDnsmasqDir)
-	// Give NM's internal dnsmasq a moment to start before we signal it.
-	time.Sleep(2 * time.Second)
-	reloadDnsmasq()
+
+	// wlan0 has no IP and no home SSID configured → fresh/reset device.
+	if wlan0IP == "" && wifiSSID == "" {
+		log.Println("startup: wlan0 disconnected and no SSID configured – enabling AP mode")
+		enableAPMode()
+		return
+	}
+
+	// wlan0 has no IP but a home SSID is configured → NM is probably still
+	// associating; the startup-network-fallback watchdog handles this case.
+	if wlan0IP == "" {
+		log.Printf("startup: wlan0 disconnected (SSID=%q configured) – watchdog will handle fallback", wifiSSID)
+	}
 }
