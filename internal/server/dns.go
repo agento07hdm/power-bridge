@@ -49,11 +49,46 @@ func (s *Server) ListenDNSCaptivePortal(addr string) error {
 		}
 		query := make([]byte, n)
 		copy(query, buf[:n])
-		resp := buildDNSResponse(query, ip, isAPMode())
+		ap := isAPMode()
+		name := parseDNSName(query)
+		log.Printf("DNS query from %s: %s (ap=%v)", src, name, ap)
+		resp := buildDNSResponse(query, ip, ap)
 		if resp != nil {
 			_, _ = conn.WriteTo(resp, src)
+			log.Printf("DNS answer: %s → %s", name, apModeIP)
 		}
 	}
+}
+
+// parseDNSName extracts the queried domain name from a raw DNS message.
+func parseDNSName(msg []byte) string {
+	if len(msg) < 13 {
+		return "?"
+	}
+	var name []byte
+	i := 12
+	for i < len(msg) {
+		l := int(msg[i])
+		if l == 0 {
+			break
+		}
+		if l&0xC0 == 0xC0 {
+			break
+		}
+		if len(name) > 0 {
+			name = append(name, '.')
+		}
+		i++
+		if i+l > len(msg) {
+			break
+		}
+		name = append(name, msg[i:i+l]...)
+		i += l
+	}
+	if len(name) == 0 {
+		return "?"
+	}
+	return string(name)
 }
 
 // buildDNSResponse builds a minimal DNS response for the given query.
