@@ -505,6 +505,22 @@ func (s *Server) captivePortalConnectTest(w http.ResponseWriter, r *http.Request
 	fmt.Fprintln(w, "Microsoft Connect Test")
 }
 
+func (s *Server) captivePortalSuccess(w http.ResponseWriter, r *http.Request) {
+	if isAPMode() {
+		http.Redirect(w, r, "/wifi", http.StatusFound)
+		return
+	}
+	fmt.Fprintln(w, "success")
+}
+
+func (s *Server) captivePortalRedirect(w http.ResponseWriter, r *http.Request) {
+	if isAPMode() {
+		http.Redirect(w, r, "/wifi", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, "http://www.msftconnecttest.com/redirect", http.StatusFound)
+}
+
 func writeFileRoot(path, content string) error {
 	cmd := exec.Command("tee", path)
 	cmd.Stdin = strings.NewReader(content)

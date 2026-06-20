@@ -18,3 +18,12 @@ func (s *Server) ExportSetWifiCredentials(ssid, password string) {
 	s.cfg.WIFISSID = ssid
 	s.cfg.WIFIPassword = password
 }
+
+// ExportSetAPMode overrides the automatic AP-mode detection for the duration of
+// a test. The returned cleanup function restores the original behaviour and
+// should be called with defer.
+func ExportSetAPMode(ap bool) func() {
+	b := ap
+	isAPModeOverride = &b
+	return func() { isAPModeOverride = nil }
+}

@@ -24,6 +24,10 @@ func uptimeSeconds() int64 {
 // serviceName is the systemd unit name used by restart/stop operations.
 const serviceName = "power-bridge"
 
+// isAPModeOverride, when non-nil, replaces the automatic AP-mode detection.
+// Only used in tests (see export_test.go).
+var isAPModeOverride *bool
+
 // isAPMode returns true when the bridge is running in Access Point (setup) mode.
 //
 // Primary check: ask NetworkManager which profile is currently active on wlan0.
@@ -31,6 +35,9 @@ const serviceName = "power-bridge"
 // temporarily be stale. Falls back to a static IP comparison for legacy stacks
 // or when NM reports no active connection (ambiguous transitional state).
 func isAPMode() bool {
+	if isAPModeOverride != nil {
+		return *isAPModeOverride
+	}
 	ip := getLocalIP()
 	// Fast path: routable non-AP IP means we are definitely in station mode.
 	if ip != "" && ip != apModeIP && !strings.HasPrefix(ip, "169.254.") {

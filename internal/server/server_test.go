@@ -805,3 +805,171 @@ func TestCaptivePortalHotspot_NotAPMode(t *testing.T) {
 	}
 }
 
+func TestRootHandler_APMode_RedirectsToWifi(t *testing.T) {
+	restore := server.ExportSetAPMode(true)
+	defer restore()
+
+	cfg := config.Defaults()
+	cfg.Configured = false
+	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/wifi" {
+		t.Errorf("expected redirect to /wifi, got %q", loc)
+	}
+}
+
+func TestRootHandler_APMode_ConfiguredRedirectsToWifi(t *testing.T) {
+	restore := server.ExportSetAPMode(true)
+	defer restore()
+
+	// Even when cfg.Configured==true the AP-mode root should point to /wifi.
+	cfg := config.Defaults()
+	cfg.Configured = true
+	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/wifi" {
+		t.Errorf("expected redirect to /wifi, got %q", loc)
+	}
+}
+
+func TestRootHandler_APMode_UnknownPath_RedirectsToWifi(t *testing.T) {
+	restore := server.ExportSetAPMode(true)
+	defer restore()
+
+	cfg := config.Defaults()
+	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
+
+	// Simulate a DNS-redirected request for an arbitrary URL
+	req := httptest.NewRequest(http.MethodGet, "/some/arbitrary/path", nil)
+	req.Host = "www.example.com"
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/wifi" {
+		t.Errorf("expected redirect to /wifi, got %q", loc)
+	}
+}
+
+func TestRootHandler_NormalMode_NotConfigured_RedirectsToSetup(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Configured = false
+	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); !strings.HasPrefix(loc, "/setup") {
+		t.Errorf("expected redirect to /setup, got %q", loc)
+	}
+}
+
+func TestRootHandler_NormalMode_UnknownPath_Returns404(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/does-not-exist", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestCaptivePortal_APMode_AllEndpoints(t *testing.T) {
+	restore := server.ExportSetAPMode(true)
+	defer restore()
+
+	cfg := config.Defaults()
+	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
+
+	endpoints := []string{
+		"/generate_204",
+		"/gen_204",
+		"/hotspot-detect.html",
+		"/library/test/success.html",
+		"/ncsi.txt",
+		"/connecttest.txt",
+		"/success.txt",
+		"/redirect",
+	}
+
+	for _, ep := range endpoints {
+		ep := ep
+		t.Run(ep, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, ep, nil)
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+
+			if w.Code != http.StatusFound {
+				t.Fatalf("%s: expected 302 redirect in AP mode, got %d", ep, w.Code)
+			}
+			if loc := w.Header().Get("Location"); loc != "/wifi" {
+				t.Errorf("%s: expected redirect to /wifi, got %q", ep, loc)
+			}
+		})
+	}
+}
+
+func TestCaptivePortal_NormalMode_Gen204(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/gen_204", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", w.Code)
+	}
+}
+
+func TestCaptivePortal_NormalMode_SuccessTxt(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/success.txt", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "success") {
+		t.Error("expected 'success' body for /success.txt in station mode")
+	}
+}
+
+func TestCaptivePortal_NormalMode_NCSITxt(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/ncsi.txt", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Microsoft NCSI") {
+		t.Error("expected 'Microsoft NCSI' body for /ncsi.txt in station mode")
+	}
+}
+

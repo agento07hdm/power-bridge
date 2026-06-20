@@ -148,18 +148,34 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/update/check", s.apiUpdateCheck)
 	mux.HandleFunc("/api/update/apply", s.apiUpdateApply)
 
-	// Captive portal detection – redirects to /setup when in AP mode so that
+	// Captive portal detection – redirects to /wifi when in AP mode so that
 	// iOS, Android and Windows automatically open the configuration page.
 	mux.HandleFunc("/generate_204", s.captivePortal204)
+	mux.HandleFunc("/gen_204", s.captivePortal204)                            // Android/Chrome alternative
 	mux.HandleFunc("/hotspot-detect.html", s.captivePortalHotspot)
+	mux.HandleFunc("/library/test/success.html", s.captivePortalHotspot)     // Apple legacy
 	mux.HandleFunc("/ncsi.txt", s.captivePortalNCSI)
 	mux.HandleFunc("/connecttest.txt", s.captivePortalConnectTest)
+	mux.HandleFunc("/success.txt", s.captivePortalSuccess)                   // Apple
+	mux.HandleFunc("/redirect", s.captivePortalRedirect)                     // Windows 7+
 
 	// Root – redirect based on configuration state
 	mux.HandleFunc("/", s.rootHandler)
 }
 
 func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
+	// In AP mode every request (including DNS-redirected probe URLs) should
+	// land on the WiFi setup page so the phone opens the captive portal UI.
+	if isAPMode() {
+		if r.URL.Path == "/" || r.URL.Path == "" {
+			http.Redirect(w, r, "/wifi", http.StatusFound)
+		} else {
+			// Unknown path coming from DNS catch-all (e.g. http://www.google.com/
+			// resolved to 192.168.4.1). Redirect to WiFi setup page.
+			http.Redirect(w, r, "/wifi", http.StatusFound)
+		}
+		return
+	}
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
