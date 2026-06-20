@@ -202,7 +202,6 @@ func TestShellyLegacyEndpoint(t *testing.T) {
 	}
 }
 
-
 func TestCORSHeaders(t *testing.T) {
 	srv := newTestServer(t)
 
@@ -309,7 +308,6 @@ func TestWiFiGetStatus(t *testing.T) {
 		t.Errorf("status: expected non-empty string, got %v", resp["status"])
 	}
 }
-
 
 func TestRPCWebSocketDispatch(t *testing.T) {
 	srv := newTestServer(t)
@@ -479,7 +477,6 @@ func TestShellyGetConfig_ContainsAllSections(t *testing.T) {
 		t.Errorf("sys.device.profile: expected \"triphase\", got %q", profile)
 	}
 }
-
 
 func TestShellyGetComponents_ContainsEMData(t *testing.T) {
 	srv := newTestServer(t)
@@ -820,8 +817,8 @@ func TestRootHandler_APMode_RedirectsToWifi(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected 302 redirect, got %d", w.Code)
 	}
-	if loc := w.Header().Get("Location"); loc != "/wifi" {
-		t.Errorf("expected redirect to /wifi, got %q", loc)
+	if loc := w.Header().Get("Location"); loc != "http://192.168.4.1/wifi" {
+		t.Errorf("expected redirect to AP wifi page, got %q", loc)
 	}
 }
 
@@ -841,8 +838,8 @@ func TestRootHandler_APMode_ConfiguredRedirectsToWifi(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected 302 redirect, got %d", w.Code)
 	}
-	if loc := w.Header().Get("Location"); loc != "/wifi" {
-		t.Errorf("expected redirect to /wifi, got %q", loc)
+	if loc := w.Header().Get("Location"); loc != "http://192.168.4.1/wifi" {
+		t.Errorf("expected redirect to AP wifi page, got %q", loc)
 	}
 }
 
@@ -862,8 +859,8 @@ func TestRootHandler_APMode_UnknownPath_RedirectsToWifi(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected 302 redirect, got %d", w.Code)
 	}
-	if loc := w.Header().Get("Location"); loc != "/wifi" {
-		t.Errorf("expected redirect to /wifi, got %q", loc)
+	if loc := w.Header().Get("Location"); loc != "http://192.168.4.1/wifi" {
+		t.Errorf("expected redirect to AP wifi page, got %q", loc)
 	}
 }
 
@@ -921,13 +918,59 @@ func TestCaptivePortal_APMode_AllEndpoints(t *testing.T) {
 			w := httptest.NewRecorder()
 			srv.ServeHTTP(w, req)
 
+			if ep == "/hotspot-detect.html" || ep == "/library/test/success.html" {
+				if w.Code != http.StatusOK {
+					t.Fatalf("%s: expected 200 landing in AP mode, got %d", ep, w.Code)
+				}
+				body := w.Body.String()
+				if !strings.Contains(body, "/wifi") {
+					t.Errorf("%s: expected landing page to point to /wifi, got body=%q", ep, body)
+				}
+				return
+			}
+
 			if w.Code != http.StatusFound {
 				t.Fatalf("%s: expected 302 redirect in AP mode, got %d", ep, w.Code)
 			}
-			if loc := w.Header().Get("Location"); loc != "/wifi" {
-				t.Errorf("%s: expected redirect to /wifi, got %q", ep, loc)
+			if loc := w.Header().Get("Location"); loc != "http://192.168.4.1/wifi" {
+				t.Errorf("%s: expected redirect to AP wifi page, got %q", ep, loc)
 			}
 		})
+	}
+}
+
+func TestCaptivePortal_APMode_AppleHostLanding(t *testing.T) {
+	restore := server.ExportSetAPMode(true)
+	defer restore()
+
+	srv := server.New(config.Defaults(), "/tmp/test-config.yaml", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "captive.apple.com"
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "/wifi") {
+		t.Fatalf("expected Apple landing page to include /wifi link")
+	}
+}
+
+func TestCaptivePortal_APMode_AllowlistedPathOnForeignHost(t *testing.T) {
+	restore := server.ExportSetAPMode(true)
+	defer restore()
+
+	srv := server.New(config.Defaults(), "/tmp/test-config.yaml", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req.Host = "example.com"
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for allowlisted internal endpoint, got %d", w.Code)
 	}
 }
 
@@ -972,4 +1015,3 @@ func TestCaptivePortal_NormalMode_NCSITxt(t *testing.T) {
 		t.Error("expected 'Microsoft NCSI' body for /ncsi.txt in station mode")
 	}
 }
-

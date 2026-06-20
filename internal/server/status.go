@@ -102,12 +102,12 @@ type apiStatusResponse struct {
 	PoweroptiTimestamp int64   `json:"poweropti_timestamp"` // device unix epoch
 
 	// Bridge network identity
-	BridgeIP           string `json:"bridge_ip"`
-	BridgeMAC          string `json:"bridge_mac"`
-	WifiSSID           string `json:"wifi_ssid"`            // configured SSID (from saved config)
-	WifiConnectedSSID  string `json:"wifi_connected_ssid"`  // actually associated SSID
-	WifiRSSI           int    `json:"wifi_rssi"`
-	IsAPMode           bool   `json:"is_ap_mode"`
+	BridgeIP          string `json:"bridge_ip"`
+	BridgeMAC         string `json:"bridge_mac"`
+	WifiSSID          string `json:"wifi_ssid"`           // configured SSID (from saved config)
+	WifiConnectedSSID string `json:"wifi_connected_ssid"` // actually associated SSID
+	WifiRSSI          int    `json:"wifi_rssi"`
+	IsAPMode          bool   `json:"is_ap_mode"`
 
 	// Poweropti identity
 	PoweroptiIP  string `json:"poweropti_ip"`
@@ -125,7 +125,7 @@ type apiStatusResponse struct {
 
 func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
-	bridgeIP := getLocalIP()
+	bridgeIP := currentBridgeIP()
 	resp := apiStatusResponse{
 		Configured:    s.cfg.Configured,
 		UptimeSeconds: uptimeSeconds(),
@@ -135,7 +135,7 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 		WifiSSID:          s.cfg.WIFISSID,
 		WifiConnectedSSID: getConnectedSSID(),
 		WifiRSSI:          getWifiRSSI(),
-		IsAPMode:          bridgeIP == apModeIP,
+		IsAPMode:          isCaptivePortalMode(),
 
 		PoweroptiIP:  s.cfg.PoweroptiIP,
 		PoweroptiMAC: lookupMACFromARP(s.cfg.PoweroptiIP),
