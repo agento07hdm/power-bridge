@@ -34,11 +34,17 @@ select:focus,input:focus{outline:none;border-color:#e94560}
 .status-connecting{background:#0c2340;color:#93c5fd}
 .status-success{background:#064e3b;color:#6ee7b7}
 .status-error{background:#4a0e0e;color:#f87171}
+.hint{margin-top:.9rem;font-size:.86rem;line-height:1.45;color:#cbd5e1;background:#0f172a;border:1px solid #334155;border-radius:.5rem;padding:.75rem}
+.hint a{color:#93c5fd}
 </style>
 </head>
 <body>
 <h1>⚡ power-bridge</h1>
 <p class="sub">Verbinde die Bridge mit deinem Heim-WLAN.</p>
+<div class="hint">
+  Falls sich diese Seite nicht automatisch öffnet: <a href="http://192.168.4.1/wifi"><b>http://192.168.4.1/wifi</b></a><br>
+  Wenn dein Handy „Kein Internet“ anzeigt, bitte im power-bridge WLAN verbunden bleiben.
+</div>
 
 <label>WLAN-Netz</label>
 <div class="refresh-row">
@@ -63,10 +69,13 @@ select:focus,input:focus{outline:none;border-color:#e94560}
 var pollTimer = null;
 var pollStart = 0;
 var fetchFailures = 0;
+var expectedSSID = '';
+var lastStatus = null;
 // wifiConnectionTimeoutSecs on the server is 35 s; allow 50 s total.
 var POLL_TIMEOUT_MS = 55000;
-// Two consecutive fetch failures to the AP IP → assume AP is gone (connected).
-var MAX_FETCH_FAILURES = 2;
+// Require a few failures and a short grace period before AP-loss fallback.
+var MAX_FETCH_FAILURES = 3;
+var FETCH_FAILURE_GRACE_MS = 15000;
 
 window.addEventListener('load', function() {
   scanWifi();
@@ -132,6 +141,7 @@ function connect() {
   var ssid = document.getElementById('ssid-input').value.trim() ||
              document.getElementById('ssid-select').value.trim();
   if (!ssid) { setStatus('status-error', '⚠ Bitte ein WLAN-Netz auswählen oder eingeben.'); return; }
+  expectedSSID = ssid;
 
   document.getElementById('connect-btn').disabled = true;
   setStatus('status-connecting', '⏳ Verbinde mit <b>' + escHtml(ssid) + '</b>…');
@@ -153,6 +163,7 @@ function connect() {
     setStatus('status-connecting', '⏳ Verbindung wird hergestellt… Bitte warte ca. 30–45 Sekunden.');
     pollStart = Date.now();
     fetchFailures = 0;
+    lastStatus = null;
     pollTimer = setInterval(pollStatus, 2500);
   })
   .catch(function() {
@@ -160,6 +171,7 @@ function connect() {
     setStatus('status-connecting', '⏳ Verbinde… Browser-Verbindung verloren. Bitte warten.');
     pollStart = Date.now();
     fetchFailures = 1;
+    lastStatus = null;
     pollTimer = setInterval(pollStatus, 3000);
   });
 }
@@ -182,7 +194,9 @@ function pollStatus() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       fetchFailures = 0; // reset on success
-      if (!d.is_ap_mode && d.bridge_ip && d.bridge_ip !== '192.168.4.1') {
+      lastStatus = d;
+      var ssidMatches = !expectedSSID || d.wifi_connected_ssid === expectedSSID || d.wifi_ssid === expectedSSID;
+      if (!d.is_ap_mode && d.bridge_ip && d.bridge_ip !== '192.168.4.1' && ssidMatches) {
         clearInterval(pollTimer);
         onConnected();
       }
@@ -190,7 +204,8 @@ function pollStatus() {
     })
     .catch(function() {
       fetchFailures++;
-      if (fetchFailures >= MAX_FETCH_FAILURES) {
+      var elapsed = Date.now() - pollStart;
+      if (fetchFailures >= MAX_FETCH_FAILURES && elapsed >= FETCH_FAILURE_GRACE_MS) {
         clearInterval(pollTimer);
         onConnected();
       }

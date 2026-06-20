@@ -546,16 +546,16 @@ func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
 // --------------------------------------------------------------------------
 
 func (s *Server) captivePortal204(w http.ResponseWriter, r *http.Request) {
-	if isAPMode() {
-		http.Redirect(w, r, "/wifi", http.StatusFound)
+	if isCaptivePortalMode() {
+		redirectToCaptiveWifi(w, r)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) captivePortalHotspot(w http.ResponseWriter, r *http.Request) {
-	if isAPMode() {
-		http.Redirect(w, r, "/wifi", http.StatusFound)
+	if isCaptivePortalMode() {
+		serveAppleCaptiveLanding(w)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
@@ -563,32 +563,32 @@ func (s *Server) captivePortalHotspot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) captivePortalNCSI(w http.ResponseWriter, r *http.Request) {
-	if isAPMode() {
-		http.Redirect(w, r, "/wifi", http.StatusFound)
+	if isCaptivePortalMode() {
+		redirectToCaptiveWifi(w, r)
 		return
 	}
 	fmt.Fprintln(w, "Microsoft NCSI")
 }
 
 func (s *Server) captivePortalConnectTest(w http.ResponseWriter, r *http.Request) {
-	if isAPMode() {
-		http.Redirect(w, r, "/wifi", http.StatusFound)
+	if isCaptivePortalMode() {
+		redirectToCaptiveWifi(w, r)
 		return
 	}
 	fmt.Fprintln(w, "Microsoft Connect Test")
 }
 
 func (s *Server) captivePortalSuccess(w http.ResponseWriter, r *http.Request) {
-	if isAPMode() {
-		http.Redirect(w, r, "/wifi", http.StatusFound)
+	if isCaptivePortalMode() {
+		redirectToCaptiveWifi(w, r)
 		return
 	}
 	fmt.Fprintln(w, "success")
 }
 
 func (s *Server) captivePortalRedirect(w http.ResponseWriter, r *http.Request) {
-	if isAPMode() {
-		http.Redirect(w, r, "/wifi", http.StatusFound)
+	if isCaptivePortalMode() {
+		redirectToCaptiveWifi(w, r)
 		return
 	}
 	http.Redirect(w, r, "http://www.msftconnecttest.com/redirect", http.StatusFound)

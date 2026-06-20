@@ -1,0 +1,99 @@
+package server
+
+import (
+	"fmt"
+	"net"
+	"net/http"
+	"strings"
+)
+
+func (s *Server) captivePortalMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isCaptivePortalMode() {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		host := normalizeHost(r.Host)
+		path := r.URL.Path
+
+		if r.Method == http.MethodGet {
+			switch path {
+			case "/generate_204", "/gen_204":
+				s.logf("captive: rule=android-probe host=%s path=%s", host, path)
+				redirectToCaptiveWifi(w, r)
+				return
+			case "/hotspot-detect.html", "/library/test/success.html":
+				s.logf("captive: rule=apple-probe-path host=%s path=%s", host, path)
+				serveAppleCaptiveLanding(w)
+				return
+			}
+			if host == "captive.apple.com" || host == "www.captive.apple.com" {
+				s.logf("captive: rule=apple-probe-host host=%s path=%s", host, path)
+				serveAppleCaptiveLanding(w)
+				return
+			}
+		}
+
+		if path == "/" {
+			s.logf("captive: rule=root-redirect host=%s path=%s", host, path)
+			redirectToCaptiveWifi(w, r)
+			return
+		}
+
+		if isForeignHost(host) && !isCaptiveAllowlistedPath(path) {
+			s.logf("captive: rule=foreign-host host=%s path=%s", host, path)
+			redirectToCaptiveWifi(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func normalizeHost(hostport string) string {
+	host := strings.TrimSpace(strings.ToLower(hostport))
+	if host == "" {
+		return ""
+	}
+	if strings.HasPrefix(host, "[") {
+		h, _, err := net.SplitHostPort(host)
+		if err == nil {
+			return strings.Trim(h, "[]")
+		}
+		return strings.Trim(host, "[]")
+	}
+	h, _, err := net.SplitHostPort(host)
+	if err == nil {
+		return h
+	}
+	return host
+}
+
+func isForeignHost(host string) bool {
+	switch host {
+	case "", apModeIP, "power-bridge", "power-bridge.local", "localhost", "127.0.0.1", "::1":
+		return false
+	default:
+		return true
+	}
+}
+
+func isCaptiveAllowlistedPath(path string) bool {
+	switch path {
+	case "/wifi", "/wifi/connect", "/api/status", "/setup/scan", "/setup/scan-poweropti", "/favicon.ico":
+		return true
+	}
+	return false
+}
+
+func redirectToCaptiveWifi(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "http://"+apModeIP+"/wifi", http.StatusFound)
+}
+
+func serveAppleCaptiveLanding(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=/wifi"><title>power-bridge Setup</title><script>window.location.replace('/wifi');</script></head><body style="font-family:system-ui,sans-serif;padding:1rem">`+
+		`<p>power-bridge Setup wird geöffnet…</p><p><a href="/wifi">WLAN-Setup öffnen</a></p></body></html>`)
+}

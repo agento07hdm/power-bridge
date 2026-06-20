@@ -33,6 +33,7 @@ type Server struct {
 	tmplWifi   *template.Template
 	httpSrv    *http.Server
 	mux        *http.ServeMux
+	handler    http.Handler
 	logBuffer  *ringLog
 	hub        *wsHub
 }
@@ -61,9 +62,10 @@ func New(cfg *config.Config, configPath string, poller *poweropti.Client) *Serve
 	mux := http.NewServeMux()
 	s.mux = mux
 	s.registerRoutes(mux)
+	s.handler = s.captivePortalMiddleware(mux)
 
 	s.httpSrv = &http.Server{
-		Handler:      mux,
+		Handler:      s.handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -73,7 +75,7 @@ func New(cfg *config.Config, configPath string, poller *poweropti.Client) *Serve
 
 // ServeHTTP implements http.Handler, enabling use with httptest.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.handler.ServeHTTP(w, r)
 }
 
 // Listen binds to addr and serves requests; it blocks until the server is shut down.
@@ -88,7 +90,7 @@ func (s *Server) Listen(addr string) error {
 func (s *Server) ListenOnPort(addr string) error {
 	extra := &http.Server{
 		Addr:         addr,
-		Handler:      s.mux,
+		Handler:      s.handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -151,13 +153,13 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Captive portal detection – redirects to /wifi when in AP mode so that
 	// iOS, Android and Windows automatically open the configuration page.
 	mux.HandleFunc("/generate_204", s.captivePortal204)
-	mux.HandleFunc("/gen_204", s.captivePortal204)                            // Android/Chrome alternative
+	mux.HandleFunc("/gen_204", s.captivePortal204) // Android/Chrome alternative
 	mux.HandleFunc("/hotspot-detect.html", s.captivePortalHotspot)
-	mux.HandleFunc("/library/test/success.html", s.captivePortalHotspot)     // Apple legacy
+	mux.HandleFunc("/library/test/success.html", s.captivePortalHotspot) // Apple legacy
 	mux.HandleFunc("/ncsi.txt", s.captivePortalNCSI)
 	mux.HandleFunc("/connecttest.txt", s.captivePortalConnectTest)
-	mux.HandleFunc("/success.txt", s.captivePortalSuccess)                   // Apple
-	mux.HandleFunc("/redirect", s.captivePortalRedirect)                     // Windows 7+
+	mux.HandleFunc("/success.txt", s.captivePortalSuccess) // Apple
+	mux.HandleFunc("/redirect", s.captivePortalRedirect)   // Windows 7+
 
 	// Root – redirect based on configuration state
 	mux.HandleFunc("/", s.rootHandler)
@@ -166,7 +168,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
 	// In AP mode every request (including DNS-redirected probe URLs) should
 	// land on the WiFi setup page so the phone opens the captive portal UI.
-	if isAPMode() {
+	if isCaptivePortalMode() {
 		if r.URL.Path == "/" || r.URL.Path == "" {
 			http.Redirect(w, r, "/wifi", http.StatusFound)
 		} else {
