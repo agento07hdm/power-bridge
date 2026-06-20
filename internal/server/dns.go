@@ -8,7 +8,23 @@ import (
 	"strings"
 )
 
-// ListenDNSCaptivePortal listens on UDP addr (e.g. ":5353") and answers every
+// DNSRedirectPort is the local UDP port our DNS server listens on.
+// Port 5353 is reserved for mDNS (avahi-daemon); 15353 is free.
+const DNSRedirectPort = "15353"
+
+// nftRuleset is the nftables config that redirects all DNS queries arriving
+// on wlan0 to our Go DNS server on DNSRedirectPort.  Written via "nft -f -".
+const nftRuleset = `
+table ip power_bridge {
+	chain prerouting {
+		type nat hook prerouting priority dstnat;
+		iif "wlan0" udp dport 53 redirect to :` + DNSRedirectPort + `
+		iif "wlan0" tcp dport 53 redirect to :` + DNSRedirectPort + `
+	}
+}
+`
+
+// ListenDNSCaptivePortal listens on UDP addr (e.g. ":15353") and answers every
 // DNS A-query with the AP IP (192.168.4.1) when in AP mode.  In normal mode
 // all queries receive NXDOMAIN.  iptables redirects port 53 from AP clients
 // to this port so dnsmasq config is not required for DNS to work.
@@ -105,33 +121,24 @@ func buildDNSResponse(query []byte, ip net.IP, apMode bool) []byte {
 	return resp
 }
 
-// applyAPIPTables installs iptables NAT rules that redirect all DNS queries
-// arriving on wlan0 to our DNS server on port 5353.  This works regardless of
-// whether NM's internal dnsmasq reads our catch-all config.
+// applyAPIPTables installs nftables rules that redirect all DNS queries
+// arriving on wlan0 to our Go DNS server on DNSRedirectPort.
+// Uses "nft -f -" (stdin) which works on Raspberry Pi OS Bookworm where
+// the standalone iptables binary is not installed.
 func applyAPIPTables() {
-	// Delete first so re-starts don't accumulate duplicate rules.
-	cleanAPIPTables()
+	cleanAPIPTables() // idempotent: delete existing table first
 
-	rules := [][]string{
-		{"-t", "nat", "-A", "PREROUTING", "-i", "wlan0", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"},
-		{"-t", "nat", "-A", "PREROUTING", "-i", "wlan0", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"},
-	}
-	for _, args := range rules {
-		if out, err := exec.Command("iptables", args...).CombinedOutput(); err != nil {
-			log.Printf("iptables add: %v (%s)", err, strings.TrimSpace(string(out)))
-		} else {
-			log.Printf("iptables: added DNS redirect rule (wlan0:53 → :5353)")
-		}
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(nftRuleset)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Printf("nft apply: %v (%s)", err, strings.TrimSpace(string(out)))
+	} else {
+		log.Printf("nft: DNS redirect wlan0:53 → :%s applied", DNSRedirectPort)
 	}
 }
 
-// cleanAPIPTables removes the NAT rules added by applyAPIPTables.
+// cleanAPIPTables removes the nftables table created by applyAPIPTables.
 func cleanAPIPTables() {
-	rules := [][]string{
-		{"-t", "nat", "-D", "PREROUTING", "-i", "wlan0", "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"},
-		{"-t", "nat", "-D", "PREROUTING", "-i", "wlan0", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "5353"},
-	}
-	for _, args := range rules {
-		_ = exec.Command("iptables", args...).Run()
-	}
+	// Errors are expected when the table does not exist yet.
+	_ = exec.Command("nft", "delete", "table", "ip", "power_bridge").Run()
 }

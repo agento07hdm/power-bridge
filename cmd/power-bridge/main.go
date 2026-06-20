@@ -108,8 +108,8 @@ func main() {
 	}()
 
 	go func() {
-		log.Println("listening on :5353 (DNS captive portal)")
-		if err := srv.ListenDNSCaptivePortal(":5353"); err != nil {
+		log.Printf("listening on :%s (DNS captive portal)", server.DNSRedirectPort)
+		if err := srv.ListenDNSCaptivePortal(":" + server.DNSRedirectPort); err != nil {
 			log.Printf("DNS captive portal: %v", err)
 		}
 	}()
