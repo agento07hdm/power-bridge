@@ -322,19 +322,67 @@ const apModeRestartDelaySecs = 3
 // to AP mode.
 const wifiConnectionTimeoutSecs = 35
 
+// nmDnsmasqSharedDir is the directory where NetworkManager's internal dnsmasq
+// reads extra config snippets for connections using ipv4.method=shared.
+const nmDnsmasqSharedDir = "/etc/NetworkManager/dnsmasq-shared.d"
+
+// nmCatchallConf is the filename written inside nmDnsmasqSharedDir.
+const nmCatchallConf = "power-bridge-catchall.conf"
+
+// standaloneDnsmasqDir is the drop-in directory for the system-wide dnsmasq
+// package. Used as a fallback when NM's shared-mode dnsmasq is unavailable.
+const standaloneDnsmasqDir = "/etc/dnsmasq.d"
+
+// apDNSConf is the dnsmasq snippet that forces captive-portal detection
+// probes and every other DNS query from AP clients to resolve to the AP IP.
+func apDNSConf() string {
+	return "# power-bridge: captive portal DNS redirect\n" +
+		"address=/connectivitycheck.gstatic.com/" + apModeIP + "\n" +
+		"address=/clients3.google.com/" + apModeIP + "\n" +
+		"address=/#/" + apModeIP + "\n"
+}
+
+// writeAPDNSConf writes the catch-all dnsmasq snippet to dir/power-bridge-catchall.conf.
+// It is idempotent: writing the same content is a no-op, and the directory is
+// created if it does not exist.  It returns true on success.
+func writeAPDNSConf(dir string) bool {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		log.Printf("AP DNS: mkdir %s failed: %v", dir, err)
+		return false
+	}
+	path := dir + "/" + nmCatchallConf
+	conf := apDNSConf()
+
+	// Idempotent: skip write when the file already contains the correct content.
+	if existing, err := os.ReadFile(path); err == nil && string(existing) == conf {
+		log.Printf("AP DNS: %s already up-to-date", path)
+		return true
+	}
+
+	if err := os.WriteFile(path, []byte(conf), 0o644); err != nil {
+		log.Printf("AP DNS: write %s failed: %v", path, err)
+		return false
+	}
+	log.Printf("AP DNS: wrote %s", path)
+	return true
+}
+
 // enableAPMode prefers NetworkManager via nmcli and falls back to
 // hostapd/dnsmasq for systems without nmcli.
 func enableAPMode() {
 	log.Println("Enabling AP mode…")
 	if hasNmcli() {
-		// Write a dnsmasq config for NM's shared-mode dnsmasq so that all DNS
-		// queries (e.g. http://power-bridge, captive portal probes) resolve to
-		// the AP IP. The directory is processed by NM's internal dnsmasq instance
-		// for connections using ipv4.method=shared.
-		const nmDnsmasqDir = "/etc/NetworkManager/dnsmasq-shared.d"
-		dnsConf := "# power-bridge: redirect all DNS to AP gateway\naddress=/#/" + apModeIP + "\n"
-		_ = os.MkdirAll(nmDnsmasqDir, 0o755)
-		_ = os.WriteFile(nmDnsmasqDir+"/power-bridge-catchall.conf", []byte(dnsConf), 0o644)
+		// Write the dnsmasq snippet for NM's shared-mode dnsmasq so that
+		// captive-portal probes (connectivitycheck.gstatic.com, clients3.google.com)
+		// and all other DNS queries from AP clients resolve to the AP IP.
+		nmOK := writeAPDNSConf(nmDnsmasqSharedDir)
+		if !nmOK {
+			// Fallback: also try the standalone dnsmasq drop-in directory so
+			// DNS redirect works even when NM's dnsmasq-shared.d is unsupported
+			// or unwritable.
+			log.Printf("AP DNS: dnsmasq-shared.d write failed – trying standalone fallback %s", standaloneDnsmasqDir)
+			writeAPDNSConf(standaloneDnsmasqDir)
+		}
 
 		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
 		if err := exec.Command(
@@ -350,14 +398,39 @@ func enableAPMode() {
 		if err := exec.Command("nmcli", "connection", "up", "power-bridge-ap").Run(); err != nil {
 			log.Printf("nmcli up power-bridge-ap failed: %v", err)
 		}
+
+		// Reload NetworkManager so its internal dnsmasq picks up the new config.
+		// nmcli connection up already causes NM to restart its dnsmasq for the
+		// shared connection, but an explicit reload guards against edge cases
+		// where the connection was already active before this call.
+		if out, err := exec.Command("systemctl", "reload-or-restart", "NetworkManager").CombinedOutput(); err != nil {
+			log.Printf("NM reload failed (%v): %s", err, strings.TrimSpace(string(out)))
+		} else {
+			log.Printf("NetworkManager reloaded – dnsmasq path: %s/%s", nmDnsmasqSharedDir, nmCatchallConf)
+		}
+
+		// Verify the config file is present after the write attempt.
+		if _, err := os.Stat(nmDnsmasqSharedDir + "/" + nmCatchallConf); err == nil {
+			log.Printf("AP DNS config verified: %s/%s", nmDnsmasqSharedDir, nmCatchallConf)
+		} else {
+			log.Printf("AP DNS config NOT found at %s/%s – captive portal may not work", nmDnsmasqSharedDir, nmCatchallConf)
+		}
+
 		log.Println("AP mode enabled")
 		return
 	}
+
+	// Legacy path: hostapd + standalone dnsmasq (no NetworkManager).
+	writeAPDNSConf(standaloneDnsmasqDir)
 	_ = exec.Command("systemctl", "stop", "wpa_supplicant@wlan0").Run()
 	_ = exec.Command("systemctl", "stop", "wpa_supplicant").Run()
 	time.Sleep(500 * time.Millisecond)
 	_ = exec.Command("systemctl", "start", "hostapd").Run()
-	_ = exec.Command("systemctl", "start", "dnsmasq").Run()
+	if out, err := exec.Command("systemctl", "restart", "dnsmasq").CombinedOutput(); err != nil {
+		log.Printf("dnsmasq restart failed (%v): %s", err, strings.TrimSpace(string(out)))
+	} else {
+		log.Printf("dnsmasq restarted – config: %s/%s", standaloneDnsmasqDir, nmCatchallConf)
+	}
 	log.Println("AP mode enabled")
 }
 

@@ -116,7 +116,7 @@ NoNewPrivileges=yes
 ProtectSystem=full
 ProtectHome=true
 PrivateTmp=yes
-ReadWritePaths=/etc/power-bridge /etc/wpa_supplicant /etc/NetworkManager/system-connections
+ReadWritePaths=/etc/power-bridge /etc/wpa_supplicant /etc/NetworkManager/system-connections /etc/NetworkManager/dnsmasq-shared.d /etc/dnsmasq.d
 
 [Install]
 WantedBy=multi-user.target
@@ -187,10 +187,26 @@ if command -v nmcli >/dev/null 2>&1 && systemctl is-active NetworkManager >/dev/
         nmcli connection up power-bridge-wifi 2>/dev/null || warn "Could not activate power-bridge-wifi"
         ok "NetworkManager now manages wlan0 with profile power-bridge-wifi"
     else
+        # Write the captive-portal DNS catch-all config for NM's shared-mode dnsmasq.
+        # This is idempotent: an existing file with the correct content is left unchanged.
+        NM_DNSMASQ_DIR="/etc/NetworkManager/dnsmasq-shared.d"
+        NM_CATCHALL="${NM_DNSMASQ_DIR}/power-bridge-catchall.conf"
+        mkdir -p "$NM_DNSMASQ_DIR"
+        cat > "$NM_CATCHALL" << EOF
+# power-bridge: captive portal DNS redirect
+address=/connectivitycheck.gstatic.com/${AP_IP}
+address=/clients3.google.com/${AP_IP}
+address=/#/${AP_IP}
+EOF
+        chmod 644 "$NM_CATCHALL"
+        ok "AP DNS catchall config written: $NM_CATCHALL"
+
         nmcli connection add type wifi ifname wlan0 con-name power-bridge-ap ssid "$AP_SSID" \
             802-11-wireless.mode ap 802-11-wireless.band bg \
             ipv4.method shared ipv4.addresses ${AP_IP}/24 || true
         nmcli connection up power-bridge-ap 2>/dev/null || warn "Could not activate power-bridge-ap"
+        # Reload NM so its internal dnsmasq picks up the newly written config.
+        systemctl reload-or-restart NetworkManager 2>/dev/null || true
         ok "No preconfigured WiFi found – AP mode prepared via NetworkManager"
     fi
 else
@@ -230,12 +246,22 @@ EOF
 # power-bridge AP mode DHCP
 interface=wlan0
 dhcp-range=192.168.4.10,192.168.4.50,255.255.255.0,24h
-address=/#/${AP_IP}
 EOF
         ok "dnsmasq DHCP configured"
     else
         ok "dnsmasq already configured – skipping"
     fi
+
+    # Write the captive-portal DNS catch-all as a separate idempotent snippet.
+    mkdir -p /etc/dnsmasq.d
+    cat > /etc/dnsmasq.d/power-bridge-catchall.conf << EOF
+# power-bridge: captive portal DNS redirect
+address=/connectivitycheck.gstatic.com/${AP_IP}
+address=/clients3.google.com/${AP_IP}
+address=/#/${AP_IP}
+EOF
+    chmod 644 /etc/dnsmasq.d/power-bridge-catchall.conf
+    ok "dnsmasq captive-portal DNS config written"
 
     if ! grep -q "power-bridge AP" /etc/dhcpcd.conf 2>/dev/null; then
         cat >> /etc/dhcpcd.conf << EOF
