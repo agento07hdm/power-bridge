@@ -218,6 +218,33 @@ automatisch als Access Point. Die Erstkonfiguration läuft vollständig über da
 4. **"Speichern & Verbinden"** klicken
 5. Der Pi verbindet sich automatisch mit dem Heimnetz
 
+### Troubleshooting: Captive Portal erscheint nicht automatisch
+
+Das automatische Öffnen des Captive Portals hängt vom Betriebssystem ab.
+Bei manchen Geräten kann es ausbleiben oder verzögert erscheinen.
+
+**Plattform-spezifische Hinweise:**
+
+| Plattform | Captive-Portal-Verhalten |
+|-----------|--------------------------|
+| **iOS / macOS** | Erscheint üblicherweise sofort nach dem WLAN-Beitritt. Falls nicht: im Browser `http://192.168.4.1/wifi` öffnen. |
+| **Android** | Notification „Zum WLAN anmelden" erscheint ca. 5–15 s nach dem Verbinden. Alternativ Browser → `http://192.168.4.1`. |
+| **Windows** | Meldet „Kein Internetzugang" und zeigt ggf. einen Link „Für WLAN anmelden". Alternativ Browser → `http://192.168.4.1`. |
+| **macOS (neuere Versionen)** | Falls das Portal-Fenster nach dem Verbinden nicht erscheint, Safari → `http://192.168.4.1/wifi` aufrufen. |
+
+**Häufige Ursachen und Lösungen:**
+
+- **Captive Portal erscheint gar nicht:** Gerät hat sich per IPv6 verbunden, das DNS-Redirect greift nur für IPv4. → Browser manuell öffnen: **`http://192.168.4.1/wifi`**
+- **Seite lädt nicht:** Browser nutzt HTTPS (HSTS-Preload für häufig besuchte Domains). → Eine nicht-HTTPS-URL wie `http://192.168.4.1/wifi` direkt eingeben oder einen Inkognito-Tab verwenden.
+- **Seite zeigt nur „404":** Ältere Firmware-Version ohne AP-Mode-Redirect. → Auf aktuelle Version updaten oder direkt `http://192.168.4.1/wifi` öffnen.
+- **DNS-Auflösung funktioniert nicht:** NetworkManager's dnsmasq-Integration ist nicht aktiv. → `systemctl status NetworkManager` und `nmcli connection show power-bridge-ap` prüfen.
+
+**Direkter Fallback (immer funktioniert):**
+
+```
+http://192.168.4.1/wifi
+```
+
 ---
 
 ## poweropti API
