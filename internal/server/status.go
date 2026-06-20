@@ -187,7 +187,10 @@ func (s *Server) apiRestart(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "restarting"})
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		_ = exec.Command("systemctl", "restart", serviceName).Run()
+		// Run reboot via systemd-run so the command executes in a new transient
+		// unit outside the power-bridge cgroup.  This prevents systemd from
+		// killing the child process (systemctl) when it tears down the service.
+		_ = exec.Command("systemd-run", "--no-block", "systemctl", "reboot").Start()
 	}()
 }
 
