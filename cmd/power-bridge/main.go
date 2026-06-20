@@ -107,6 +107,13 @@ func main() {
 		}
 	}()
 
+	go func() {
+		log.Println("listening on :5353 (DNS captive portal)")
+		if err := srv.ListenDNSCaptivePortal(":5353"); err != nil {
+			log.Printf("DNS captive portal: %v", err)
+		}
+	}()
+
 	server.EnsureAPModeOnStartup(cfg.WIFISSID)
 
 	quit := make(chan os.Signal, 1)

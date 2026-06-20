@@ -339,7 +339,10 @@ func apDNSConf() string {
 	return "# power-bridge: captive portal DNS redirect\n" +
 		"address=/connectivitycheck.gstatic.com/" + apModeIP + "\n" +
 		"address=/clients3.google.com/" + apModeIP + "\n" +
-		"address=/#/" + apModeIP + "\n"
+		"address=/#/" + apModeIP + "\n" +
+		// RFC 8910: tell DHCP clients directly where the captive portal is.
+		// Supported by Android 11+ and iOS 14+.
+		"dhcp-option=114,http://" + apModeIP + "/wifi\n"
 }
 
 // writeAPDNSConf writes the catch-all dnsmasq snippet to dir/power-bridge-catchall.conf.
@@ -378,6 +381,7 @@ func enableAPMode() {
 		writeAPDNSConf(nmDnsmasqSharedDir)
 		writeAPDNSConf(standaloneDnsmasqDir)
 		reloadDnsmasq()
+		applyAPIPTables()
 
 		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
 		if err := exec.Command(
@@ -745,11 +749,12 @@ func EnsureAPModeOnStartup(wifiSSID string) {
 
 	// Already broadcasting the AP – just ensure DNS config is fresh.
 	if alreadyAP || wlan0IP == apModeIP {
-		log.Println("startup: AP mode active – ensuring DNS catch-all config")
+		log.Println("startup: AP mode active – ensuring DNS catch-all config and iptables rules")
 		writeAPDNSConf(nmDnsmasqSharedDir)
 		writeAPDNSConf(standaloneDnsmasqDir)
 		time.Sleep(2 * time.Second)
 		reloadDnsmasq()
+		applyAPIPTables()
 		return
 	}
 
