@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -76,6 +77,57 @@ func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
 	if err := s.tmplSetup.Execute(w, data); err != nil {
 		log.Printf("setup template error: %v", err)
 	}
+}
+
+// --------------------------------------------------------------------------
+// Dedicated WiFi setup page (GET /wifi)
+// Shown via captive portal when the bridge is in AP mode.
+// --------------------------------------------------------------------------
+
+func (s *Server) wifiSetupPage(w http.ResponseWriter, r *http.Request) {
+	if err := s.tmplWifi.Execute(w, nil); err != nil {
+		log.Printf("wifi template error: %v", err)
+	}
+}
+
+// --------------------------------------------------------------------------
+// WiFi connect (POST /wifi/connect)
+// Saves only the WiFi credentials and kicks off the connection sequence.
+// Returns JSON so the page can poll for status.
+// --------------------------------------------------------------------------
+
+func (s *Server) wifiConnect(w http.ResponseWriter, r *http.Request) {
+	jsonHeader(w)
+	if r.Method != http.MethodPost {
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "POST only"})
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "bad form data"})
+		return
+	}
+
+	ssid := strings.TrimSpace(r.FormValue("ssid"))
+	if ssid == "" {
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "SSID darf nicht leer sein"})
+		return
+	}
+
+	s.cfg.WIFISSID = ssid
+	s.cfg.WIFIPassword = r.FormValue("password")
+
+	if err := config.Save(s.configPath, s.cfg); err != nil {
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Fehler beim Speichern: %v", err)})
+		return
+	}
+
+	s.logf("WiFi setup via /wifi: connecting to SSID=%s", ssid)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "connecting"})
+
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		applyWifiConfig(s.cfg.WIFISSID, s.cfg.WIFIPassword)
+	}()
 }
 
 // --------------------------------------------------------------------------
@@ -275,6 +327,15 @@ const wifiConnectionTimeoutSecs = 35
 func enableAPMode() {
 	log.Println("Enabling AP mode…")
 	if hasNmcli() {
+		// Write a dnsmasq config for NM's shared-mode dnsmasq so that all DNS
+		// queries (e.g. http://power-bridge, captive portal probes) resolve to
+		// the AP IP. The directory is processed by NM's internal dnsmasq instance
+		// for connections using ipv4.method=shared.
+		const nmDnsmasqDir = "/etc/NetworkManager/dnsmasq-shared.d"
+		dnsConf := "# power-bridge: redirect all DNS to AP gateway\naddress=/#/" + apModeIP + "\n"
+		_ = os.MkdirAll(nmDnsmasqDir, 0o755)
+		_ = os.WriteFile(nmDnsmasqDir+"/power-bridge-catchall.conf", []byte(dnsConf), 0o644)
+
 		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
 		if err := exec.Command(
 			"nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0",
@@ -413,7 +474,7 @@ func (s *Server) apiWifiForget(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) captivePortal204(w http.ResponseWriter, r *http.Request) {
 	if isAPMode() {
-		http.Redirect(w, r, "/setup", http.StatusFound)
+		http.Redirect(w, r, "/wifi", http.StatusFound)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -421,7 +482,7 @@ func (s *Server) captivePortal204(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) captivePortalHotspot(w http.ResponseWriter, r *http.Request) {
 	if isAPMode() {
-		http.Redirect(w, r, "/setup", http.StatusFound)
+		http.Redirect(w, r, "/wifi", http.StatusFound)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
@@ -430,7 +491,7 @@ func (s *Server) captivePortalHotspot(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) captivePortalNCSI(w http.ResponseWriter, r *http.Request) {
 	if isAPMode() {
-		http.Redirect(w, r, "/setup", http.StatusFound)
+		http.Redirect(w, r, "/wifi", http.StatusFound)
 		return
 	}
 	fmt.Fprintln(w, "Microsoft NCSI")
@@ -438,7 +499,7 @@ func (s *Server) captivePortalNCSI(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) captivePortalConnectTest(w http.ResponseWriter, r *http.Request) {
 	if isAPMode() {
-		http.Redirect(w, r, "/setup", http.StatusFound)
+		http.Redirect(w, r, "/wifi", http.StatusFound)
 		return
 	}
 	fmt.Fprintln(w, "Microsoft Connect Test")
@@ -492,8 +553,25 @@ func writeAvahiService(cfg *config.Config) {
 		log.Printf("failed to write avahi service to %s: %v", avahiPath, err)
 		return
 	}
+
+	// Set the system hostname to "power-bridge" so that the device is
+	// reachable as power-bridge.local via mDNS (avahi uses the system hostname).
+	setSystemHostname(apSSID)
+
 	if err := exec.Command("systemctl", "restart", "avahi-daemon").Run(); err != nil {
 		log.Printf("avahi-daemon restart failed: %v", err)
+	}
+}
+
+// setSystemHostname sets the system hostname so the device is reachable
+// via mDNS as <name>.local. It uses hostnamectl when available and falls
+// back to writing /etc/hostname directly.
+func setSystemHostname(name string) {
+	if err := exec.Command("hostnamectl", "set-hostname", name).Run(); err != nil {
+		// Fallback: write /etc/hostname directly.
+		if werr := os.WriteFile("/etc/hostname", []byte(name+"\n"), 0o644); werr != nil {
+			log.Printf("setSystemHostname: hostnamectl failed (%v) and /etc/hostname write failed (%v)", err, werr)
+		}
 	}
 }
 
@@ -509,20 +587,51 @@ func macNoColons(mac string) string {
 
 func (s *Server) setupScanWifi(w http.ResponseWriter, r *http.Request) {
 	jsonHeader(w)
-	out, err := exec.Command("iwlist", "wlan0", "scan").Output()
-	if err != nil {
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-		return
-	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"ssids": scanWifiSSIDs()})
+}
+
+// scanWifiSSIDs returns a sorted, deduplicated list of visible SSIDs.
+// It prefers nmcli (NetworkManager) and falls back to iwlist.
+// The device's own AP SSID is filtered out.
+func scanWifiSSIDs() []string {
 	var ssids []string
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "ESSID:") {
-			ssid := strings.Trim(strings.TrimPrefix(line, "ESSID:"), `"`)
-			if ssid != "" {
-				ssids = append(ssids, ssid)
-			}
+	if hasNmcli() {
+		out, err := exec.Command("nmcli", "--rescan", "yes", "-g", "SSID", "dev", "wifi", "list").Output()
+		if err == nil {
+			ssids = parseSSIDLines(strings.Split(string(out), "\n"))
 		}
 	}
-	_ = json.NewEncoder(w).Encode(map[string]any{"ssids": ssids})
+	if len(ssids) == 0 {
+		out, err := exec.Command("iwlist", "wlan0", "scan").Output()
+		if err == nil {
+			var raw []string
+			for _, line := range strings.Split(string(out), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "ESSID:") {
+					raw = append(raw, strings.Trim(strings.TrimPrefix(line, "ESSID:"), `"`))
+				}
+			}
+			ssids = parseSSIDLines(raw)
+		}
+	}
+	return ssids
+}
+
+// parseSSIDLines deduplicates, filters blank/AP entries, and sorts SSIDs.
+func parseSSIDLines(lines []string) []string {
+	seen := make(map[string]struct{})
+	result := []string{}
+	for _, s := range lines {
+		s = strings.TrimSpace(s)
+		if s == "" || s == "--" || s == apSSID {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		result = append(result, s)
+	}
+	sort.Strings(result)
+	return result
 }
