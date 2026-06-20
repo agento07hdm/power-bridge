@@ -50,6 +50,9 @@ func (s *Server) apiUpdateCheck(w http.ResponseWriter, r *http.Request) {
 
 // apiUpdateApply triggers the update.sh script and restarts the service.
 // It returns immediately – the actual update happens in the background.
+// The update runs via systemd-run so it executes in a new transient unit
+// outside the power-bridge cgroup and without the ProtectSystem=full
+// filesystem restrictions, allowing update.sh to write to /usr/local/bin.
 func (s *Server) apiUpdateApply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
@@ -59,7 +62,9 @@ func (s *Server) apiUpdateApply(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "update_started"})
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		_ = exec.Command("bash", "/usr/local/share/power-bridge/update.sh").Run()
-		_ = exec.Command("systemctl", "restart", serviceName).Run()
+		_ = exec.Command("systemd-run", "--no-block",
+			"bash", "-c",
+			"bash /usr/local/share/power-bridge/update.sh && systemctl restart "+serviceName,
+		).Start()
 	}()
 }
