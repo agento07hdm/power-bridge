@@ -19,8 +19,13 @@ func (s *Server) captivePortalMiddleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodGet {
 			switch path {
 			case "/generate_204", "/gen_204":
-				s.logf("captive: rule=android-probe host=%s path=%s", host, path)
-				redirectToCaptiveWifi(w, r)
+				// Return 204 even in AP mode: a 302 here causes Android to detect a
+				// captive portal and immediately switch back to home WiFi when home
+				// WiFi is in range.  With 204 Android stays connected and treats the
+				// network as having internet; the general redirect middleware below
+				// catches all real browser traffic and sends it to /wifi.
+				s.logf("captive: rule=android-probe-204 host=%s path=%s", host, path)
+				w.WriteHeader(http.StatusNoContent)
 				return
 			case "/hotspot-detect.html", "/library/test/success.html":
 				s.logf("captive: rule=apple-probe-path host=%s path=%s", host, path)

@@ -377,6 +377,7 @@ func enableAPMode() {
 		// and all other DNS queries from AP clients resolve to the AP IP.
 		writeAPDNSConf(nmDnsmasqSharedDir)
 		writeAPDNSConf(standaloneDnsmasqDir)
+		reloadDnsmasq()
 
 		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
 		if err := exec.Command(
@@ -717,4 +718,31 @@ func parseSSIDLines(lines []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// reloadDnsmasq sends SIGHUP to all running dnsmasq processes so they
+// re-read conf files from dnsmasq-shared.d / dnsmasq.d without restarting.
+// This is safe to call even when dnsmasq is not installed; pkill exits non-zero
+// in that case but we ignore the error.
+func reloadDnsmasq() {
+	if out, err := exec.Command("pkill", "-HUP", "dnsmasq").CombinedOutput(); err != nil {
+		log.Printf("AP DNS: dnsmasq HUP: %v (%s)", err, strings.TrimSpace(string(out)))
+	} else {
+		log.Printf("AP DNS: sent SIGHUP to dnsmasq – catch-all config reloaded")
+	}
+}
+
+// ensureAPDNSOnStartup writes the captive-portal DNS catch-all config and
+// signals dnsmasq to reload when the service starts up already in AP mode.
+// Call once at startup; it is a no-op when not in AP mode.
+func EnsureAPDNSOnStartup() {
+	if !isAPMode() {
+		return
+	}
+	log.Println("AP mode detected on startup – ensuring DNS catch-all config")
+	writeAPDNSConf(nmDnsmasqSharedDir)
+	writeAPDNSConf(standaloneDnsmasqDir)
+	// Give NM's internal dnsmasq a moment to start before we signal it.
+	time.Sleep(2 * time.Second)
+	reloadDnsmasq()
 }

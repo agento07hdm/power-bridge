@@ -107,12 +107,7 @@ func main() {
 		}
 	}()
 
-	go func() {
-		log.Println("listening on :53 (DNS captive portal)")
-		if err := srv.ListenDNSCaptivePortal(":53"); err != nil {
-			log.Printf("DNS captive portal: %v", err)
-		}
-	}()
+	server.EnsureAPDNSOnStartup()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
