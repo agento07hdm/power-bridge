@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -25,12 +24,12 @@ func (s *Server) captivePortalMiddleware(next http.Handler) http.Handler {
 				return
 			case "/hotspot-detect.html", "/library/test/success.html":
 				s.logf("captive: rule=apple-probe-path host=%s path=%s", host, path)
-				serveAppleCaptiveLanding(w)
+				serveAppleCaptiveLanding(w, r)
 				return
 			}
 			if host == "captive.apple.com" || host == "www.captive.apple.com" {
 				s.logf("captive: rule=apple-probe-host host=%s path=%s", host, path)
-				serveAppleCaptiveLanding(w)
+				serveAppleCaptiveLanding(w, r)
 				return
 			}
 		}
@@ -91,9 +90,6 @@ func redirectToCaptiveWifi(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "http://"+apModeIP+"/wifi", http.StatusFound)
 }
 
-func serveAppleCaptiveLanding(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=/wifi"><title>power-bridge Setup</title><script>window.location.replace('/wifi');</script></head><body style="font-family:system-ui,sans-serif;padding:1rem">`+
-		`<p>power-bridge Setup wird geöffnet…</p><p><a href="/wifi">WLAN-Setup öffnen</a></p></body></html>`)
+func serveAppleCaptiveLanding(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "http://"+apModeIP+"/wifi", http.StatusFound)
 }

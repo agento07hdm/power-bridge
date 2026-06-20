@@ -100,6 +100,13 @@ func main() {
 		}()
 	}
 
+	go func() {
+		log.Println("listening on :443 (TLS captive portal)")
+		if err := srv.ListenTLSCaptivePortal(":443"); err != nil {
+			log.Printf("TLS captive portal: %v", err)
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

@@ -375,14 +375,8 @@ func enableAPMode() {
 		// Write the dnsmasq snippet for NM's shared-mode dnsmasq so that
 		// captive-portal probes (connectivitycheck.gstatic.com, clients3.google.com)
 		// and all other DNS queries from AP clients resolve to the AP IP.
-		nmOK := writeAPDNSConf(nmDnsmasqSharedDir)
-		if !nmOK {
-			// Fallback: also try the standalone dnsmasq drop-in directory so
-			// DNS redirect works even when NM's dnsmasq-shared.d is unsupported
-			// or unwritable.
-			log.Printf("AP DNS: dnsmasq-shared.d write failed – trying standalone fallback %s", standaloneDnsmasqDir)
-			writeAPDNSConf(standaloneDnsmasqDir)
-		}
+		writeAPDNSConf(nmDnsmasqSharedDir)
+		writeAPDNSConf(standaloneDnsmasqDir)
 
 		_ = exec.Command("nmcli", "connection", "delete", "power-bridge-ap").Run()
 		if err := exec.Command(
@@ -555,7 +549,7 @@ func (s *Server) captivePortal204(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) captivePortalHotspot(w http.ResponseWriter, r *http.Request) {
 	if isCaptivePortalMode() {
-		serveAppleCaptiveLanding(w)
+		serveAppleCaptiveLanding(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
