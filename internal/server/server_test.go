@@ -711,3 +711,97 @@ func TestRPCWebSocket_NotifyStatusPush(t *testing.T) {
 		t.Error("params['em:0'] missing")
 	}
 }
+
+func TestWifiSetupPageRendered(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Configured = false
+	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/wifi", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "power-bridge") {
+		t.Error("wifi page should contain 'power-bridge'")
+	}
+	if !strings.Contains(body, "wifi-password") {
+		t.Error("wifi page should contain password field")
+	}
+	if !strings.Contains(body, "ssid-select") {
+		t.Error("wifi page should contain SSID dropdown")
+	}
+}
+
+func TestWifiConnect_MissingSSID(t *testing.T) {
+	srv := newTestServer(t)
+
+	body := strings.NewReader("ssid=&******")
+	req := httptest.NewRequest(http.MethodPost, "/wifi/connect", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("expected JSON, got %q", ct)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp["error"] == nil {
+		t.Error("expected error for empty SSID")
+	}
+}
+
+func TestWifiConnect_MethodNotAllowed(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/wifi/connect", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("expected JSON, got %q", ct)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp["error"] == nil {
+		t.Error("expected error for GET request")
+	}
+}
+
+func TestCaptivePortal204_NotAPMode(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/generate_204", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// In test env (not AP mode), should return 204 No Content.
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", w.Code)
+	}
+}
+
+func TestCaptivePortalHotspot_NotAPMode(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/hotspot-detect.html", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// In test env (not AP mode), should return 200 with "Success" body.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "Success") {
+		t.Error("expected 'Success' body for hotspot-detect.html in station mode")
+	}
+}
+

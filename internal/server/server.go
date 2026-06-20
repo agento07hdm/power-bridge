@@ -30,6 +30,7 @@ type Server struct {
 	poller     *poweropti.Client
 	tmplSetup  *template.Template
 	tmplStatus *template.Template
+	tmplWifi   *template.Template
 	httpSrv    *http.Server
 	mux        *http.ServeMux
 	logBuffer  *ringLog
@@ -52,6 +53,9 @@ func New(cfg *config.Config, configPath string, poller *poweropti.Client) *Serve
 	)
 	s.tmplStatus = template.Must(
 		template.ParseFS(templateFS, "templates/status.html"),
+	)
+	s.tmplWifi = template.Must(
+		template.ParseFS(templateFS, "templates/wifi.html"),
 	)
 
 	mux := http.NewServeMux()
@@ -130,6 +134,10 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/setup/save", s.setupSave)
 	mux.HandleFunc("/setup/scan", s.setupScanWifi)
 	mux.HandleFunc("/setup/scan-poweropti", s.setupScanPoweropti)
+
+	// Dedicated WiFi onboarding page (shown via captive portal in AP mode)
+	mux.HandleFunc("/wifi", s.wifiSetupPage)
+	mux.HandleFunc("/wifi/connect", s.wifiConnect)
 
 	// Status & internal API
 	mux.HandleFunc("/api/status", s.apiStatus)
