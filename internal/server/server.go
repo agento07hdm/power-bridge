@@ -147,6 +147,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/restart", s.apiRestart)
 	mux.HandleFunc("/api/test/poweropti", s.apiTestPoweropti)
 	mux.HandleFunc("/api/wifi/forget", s.apiWifiForget)
+	mux.HandleFunc("/api/factory-reset", s.apiFactoryReset)
 	mux.HandleFunc("/api/update/check", s.apiUpdateCheck)
 	mux.HandleFunc("/api/update/apply", s.apiUpdateApply)
 

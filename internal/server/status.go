@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os/exec"
 	"time"
+
+	"github.com/fedzzito/power-bridge/internal/config"
 )
 
 // --------------------------------------------------------------------------
@@ -191,6 +193,38 @@ func (s *Server) apiRestart(w http.ResponseWriter, r *http.Request) {
 		// unit outside the power-bridge cgroup.  This prevents systemd from
 		// killing the child process (systemctl) when it tears down the service.
 		_ = exec.Command("systemd-run", "--no-block", "systemctl", "reboot").Start()
+	}()
+}
+
+// --------------------------------------------------------------------------
+// /api/factory-reset  – wipes user-specific data (WiFi, poweropti) so the
+// device can be handed to a new owner in a clean state.
+// --------------------------------------------------------------------------
+
+func (s *Server) apiFactoryReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	jsonHeader(w)
+
+	s.cfg.WIFISSID = ""
+	s.cfg.WIFIPassword = ""
+	s.cfg.PoweroptiIP = ""
+	s.cfg.PoweroptiAPIKey = ""
+	s.cfg.Configured = false
+
+	if err := config.Save(s.configPath, s.cfg); err != nil {
+		log.Printf("factory-reset: save error: %v", err)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	log.Printf("factory-reset: config cleared, restarting service")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "reset"})
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = exec.Command("systemd-run", "--no-block", "systemctl", "restart", "power-bridge").Start()
 	}()
 }
 

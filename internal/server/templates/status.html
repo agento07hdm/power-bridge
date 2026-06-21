@@ -199,10 +199,27 @@ details[open] summary::before{transform:rotate(90deg)}
 <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem">
   <button class="btn btn-primary" onclick="restartService()" data-i18n="btn_restart">&#x1F504; Neustart</button>
   <a href="/setup" class="btn btn-secondary" data-i18n="btn_settings">&#x2699; Einstellungen</a>
+  <button class="btn btn-danger" onclick="openResetModal()" data-i18n="reset_btn">&#x267B; Gerät zurücksetzen</button>
   <span style="flex:1"></span>
   <span class="mono" id="ver-display" style="font-size:.72rem;color:#4b5563"></span>
 </div>
 <p id="action-msg" style="font-size:.78rem;color:#aaa;margin-bottom:.5rem"></p>
+
+<!-- Factory-Reset modal -->
+<div class="modal-overlay" id="reset-modal" onclick="closeResetIfBg(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" id="reset-modal-title" data-i18n="reset_modal_title">&#x26A0; Gerät zurücksetzen</span>
+      <button class="btn btn-secondary" onclick="closeResetModal()" style="padding:.3rem .7rem">&#x2715;</button>
+    </div>
+    <p id="reset-modal-body" style="font-size:.87rem;color:#ccc;white-space:pre-line;margin-bottom:1rem"></p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeResetModal()" id="reset-cancel-btn" data-i18n="reset_cancel">Abbrechen</button>
+      <button class="btn btn-danger" onclick="doFactoryReset()" id="reset-confirm-btn" data-i18n="reset_confirm_label">Ja, zurücksetzen</button>
+    </div>
+    <p id="reset-msg" style="display:none;margin-top:.6rem;font-size:.82rem;color:#6ee7b7;background:#064e3b;padding:.5rem .75rem;border-radius:.4rem"></p>
+  </div>
+</div>
 
 <!-- Chart modal -->
 <div class="modal-overlay" id="chart-modal" onclick="closeChartIfBg(event)">
@@ -235,6 +252,13 @@ var T={de:{
   update_started:'Update wird eingespielt\u2026',
   chart_title:'\u{1F4C8} Leistungswertanalyse',chart_close:'\u2715 Schlie\u00dfen',
   forget_confirm:'WLAN-Zugangsdaten wirklich l\u00f6schen? Die power-bridge wechselt in den AP-Modus.',
+  reset_btn:'&#x267B; Ger\u00e4t zur\u00fccksetzen',
+  reset_modal_title:'Zur Factory-Reset best\u00e4tigen',
+  reset_modal_body:'Alle benutzerspezifischen Daten werden gel\u00f6scht:\n\u2022 WLAN-Name und Passwort\n\u2022 poweropti-IP und API-Schl\u00fcssel\n\nDas Ger\u00e4t startet danach im Setup-Modus und kann einem neuen Nutzer \u00fcbergeben werden.',
+  reset_confirm_label:'Ja, Ger\u00e4t zur\u00fccksetzen',
+  reset_cancel:'Abbrechen',
+  reset_progress:'Zur\u00fccksetzen\u2026',
+  reset_done:'Zur\u00fcckgesetzt. Ger\u00e4t startet neu\u2026',
   forget_ap_info:'AP-Modus aktiv. Verbinde dich jetzt mit dem WLAN <strong>"power-bridge"</strong> und \u00f6ffne <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
   wifi_connecting:'Verbindet\u2026',
   setup_done:'Konfiguration gespeichert. Verbinde mit WLAN\u2026',
@@ -261,6 +285,13 @@ var T={de:{
   update_started:'Update in progress\u2026',
   chart_title:'\u{1F4C8} Power analysis',chart_close:'\u2715 Close',
   forget_confirm:'Really delete WiFi credentials? The power-bridge will switch to AP mode.',
+  reset_btn:'&#x267B; Factory Reset',
+  reset_modal_title:'Confirm Factory Reset',
+  reset_modal_body:'All user-specific data will be deleted:\n• WiFi name and password\n• poweropti IP and API key\n\nThe device will restart in setup mode and can be handed to a new user.',
+  reset_confirm_label:'Yes, reset device',
+  reset_cancel:'Cancel',
+  reset_progress:'Resetting…',
+  reset_done:'Reset complete. Device is restarting…',
   forget_ap_info:'AP mode active. Connect to WiFi <strong>"power-bridge"</strong> and open <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
   wifi_connecting:'Connecting\u2026',
   setup_done:'Configuration saved. Connecting to WiFi\u2026',
@@ -502,6 +533,42 @@ function renderChart(d){
     document.getElementById('chart-info').textContent=
       fmtWattSimple(d.watt)+' | '+t('consumed')+' '+fmtKwh(d.consumed_wh)+' | '+t('delivered')+' '+fmtKwh(d.delivered_wh);
   }
+}
+
+function openResetModal(){
+  document.getElementById('reset-modal-title').textContent=t('reset_modal_title');
+  document.getElementById('reset-modal-body').textContent=t('reset_modal_body');
+  document.getElementById('reset-cancel-btn').textContent=t('reset_cancel');
+  document.getElementById('reset-confirm-btn').textContent=t('reset_confirm_label');
+  document.getElementById('reset-confirm-btn').disabled=false;
+  document.getElementById('reset-msg').style.display='none';
+  document.getElementById('reset-modal').style.display='flex';
+}
+function closeResetModal(){document.getElementById('reset-modal').style.display='none';}
+function closeResetIfBg(e){if(e.target===document.getElementById('reset-modal'))closeResetModal();}
+function doFactoryReset(){
+  var btn=document.getElementById('reset-confirm-btn');
+  var cancelBtn=document.getElementById('reset-cancel-btn');
+  btn.disabled=true;cancelBtn.disabled=true;
+  btn.textContent=t('reset_progress');
+  fetch('/api/factory-reset',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+    var msg=document.getElementById('reset-msg');
+    if(d.error){
+      msg.style.background='#4a0e0e';msg.style.color='#f87171';
+      msg.textContent='Fehler: '+d.error;msg.style.display='block';
+      btn.disabled=false;cancelBtn.disabled=false;
+      btn.textContent=t('reset_confirm_label');
+    } else {
+      msg.style.background='#064e3b';msg.style.color='#6ee7b7';
+      msg.textContent=t('reset_done');msg.style.display='block';
+    }
+  }).catch(function(e){
+    var msg=document.getElementById('reset-msg');
+    msg.style.background='#4a0e0e';msg.style.color='#f87171';
+    msg.textContent='Anfrage fehlgeschlagen: '+e;msg.style.display='block';
+    btn.disabled=false;cancelBtn.disabled=false;
+    btn.textContent=t('reset_confirm_label');
+  });
 }
 
 applyLang();
