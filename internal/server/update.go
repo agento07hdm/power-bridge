@@ -23,7 +23,7 @@ func (s *Server) apiUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	resp := updateCheckResponse{CurrentVersion: Version}
 
 	client := &http.Client{Timeout: 8 * time.Second}
-	ghResp, err := client.Get("https://api.github.com/repos/fedzzito/power-bridge/releases/latest")
+	ghResp, err := client.Get("https://api.github.com/repos/agento07hdm/power-bridge/releases/latest")
 	if err != nil {
 		_ = json.NewEncoder(w).Encode(resp)
 		return
