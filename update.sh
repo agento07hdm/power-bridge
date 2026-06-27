@@ -21,7 +21,7 @@
 # =============================================================================
 set -euo pipefail
 
-REPO="fedzzito/power-bridge"
+REPO="agento07hdm/power-bridge"
 BINARY_DEST="/usr/local/bin/power-bridge"
 SHARE_DIR="/usr/local/share/power-bridge"
 VERSION_FILE="/etc/power-bridge/VERSION"
