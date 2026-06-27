@@ -220,11 +220,21 @@ func (s *Server) apiFactoryReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("factory-reset: config cleared, restarting service")
+	log.Printf("factory-reset: config cleared, restoring AP mode")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "reset"})
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		_ = exec.Command("systemd-run", "--no-block", "systemctl", "restart", "power-bridge").Start()
+		// Remove the home-WiFi NM profile so it does not compete with AP mode
+		// after restart. Without this the Pi ends up in a state where NM keeps
+		// trying the old WiFi while power-bridge (now unconfigured) never calls
+		// enableAPMode(), leaving the device unreachable.
+		if hasNmcli() {
+			_ = exec.Command("nmcli", "connection", "delete", "power-bridge-wifi").Run()
+		}
+		enableAPMode()
+		time.Sleep(500 * time.Millisecond)
+		_ = exec.Command("systemd-run", "--no-block",
+			"systemctl", "restart", serviceName).Start()
 	}()
 }
 
