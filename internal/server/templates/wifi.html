@@ -277,14 +277,17 @@ function pollStatus() {
 }
 
 function onConnected() {
+  var ip = lastStatus && lastStatus.bridge_ip && lastStatus.bridge_ip !== '192.168.4.1'
+    ? lastStatus.bridge_ip : null;
+  var target = ip ? 'http://' + ip : 'http://power-bridge.local';
+  var extra = ip
+    ? '<br><span style="font-size:.82rem;color:#9ca3af">Alternativ: <a href="http://power-bridge.local" style="color:#6ee7b7">http://power-bridge.local</a></span>'
+    : '<br><span style="font-size:.82rem;color:#9ca3af">(mDNS – funktioniert nicht auf Android)</span>';
   setStatus('status-success',
     '✅ Bridge verbunden!<br><br>' +
-    'Dein Gerät wechselt jetzt automatisch zurück in dein Heim-WLAN.<br>' +
-    'Die Bridge ist dann erreichbar unter:<br><br>' +
-    '<b><a href="http://power-bridge.local" style="color:#6ee7b7">http://power-bridge.local</a></b><br>' +
-    '<span style="font-size:.82rem;color:#9ca3af">(oder über <a href="http://power-bridge" style="color:#6ee7b7">http://power-bridge</a>,' +
-    ' falls dein Router das unterstützt)</span>');
-  setTimeout(function() { window.location.href = 'http://power-bridge.local'; }, 6000);
+    'Weiterleitung in 5 Sekunden…<br><br>' +
+    '<b><a href="' + target + '" style="color:#6ee7b7">' + target + '</a></b>' + extra);
+  setTimeout(function() { window.location.href = target; }, 5000);
 }
 
 function setStatus(cls, html) {
