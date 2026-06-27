@@ -725,11 +725,11 @@ func TestWifiSetupPageRendered(t *testing.T) {
 	if !strings.Contains(body, "power-bridge") {
 		t.Error("wifi page should contain 'power-bridge'")
 	}
-	if !strings.Contains(body, "wifi-password") {
+	if !strings.Contains(body, "manual-password") {
 		t.Error("wifi page should contain password field")
 	}
-	if !strings.Contains(body, "ssid-select") {
-		t.Error("wifi page should contain SSID dropdown")
+	if !strings.Contains(body, "net-list") {
+		t.Error("wifi page should contain network list")
 	}
 }
 

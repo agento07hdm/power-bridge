@@ -91,5 +91,9 @@ func redirectToCaptiveWifi(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveAppleCaptiveLanding(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "http://"+apModeIP+"/wifi", http.StatusFound)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="utf-8">` +
+		`<meta http-equiv="refresh" content="0;url=http://` + apModeIP + `/wifi">` +
+		`</head><body><p>Redirecting to <a href="http://` + apModeIP + `/wifi">/wifi</a></p></body></html>`))
 }
