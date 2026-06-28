@@ -52,11 +52,6 @@ input:focus{outline:none;border-color:#388bfd}
 .status-connecting{background:#0d2136;border:1px solid #1d4ed8;color:#93c5fd}
 .status-success{background:#0a1f10;border:1px solid #238636;color:#3fb950}
 .status-error{background:#1a0a0a;border:1px solid #8b1a1a;color:#f85149}
-.connect-hint{font-size:.73rem;color:#484f58;margin-top:.2rem;line-height:1.5}
-.browser-bar{background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:.6rem .75rem;margin-bottom:1rem;display:flex;align-items:center;gap:.65rem}
-.browser-bar-text{flex:1;font-size:.78rem;color:#8b949e;line-height:1.4}
-.btn-browser{background:#21262d;border:1px solid #388bfd;color:#388bfd;font-size:.78rem;font-weight:600;padding:.38rem .75rem;border-radius:.3rem;cursor:pointer;white-space:nowrap;flex-shrink:0}
-.btn-browser:hover{background:#1f6feb;color:#fff}
 .copy-url{display:inline-block;background:#21262d;border:1px solid #30363d;border-radius:.25rem;padding:.15rem .45rem;font-family:monospace;font-size:.82rem;cursor:pointer;color:#58a6ff;margin:.3rem 0}
 .copy-url:active{background:#388bfd;color:#fff}
 /* Modal */
@@ -75,11 +70,6 @@ input:focus{outline:none;border-color:#388bfd}
 <h1>power-bridge</h1>
 <p class="sub">Verbinde die Bridge mit deinem Heim-WLAN.</p>
 
-<div class="browser-bar">
-  <span class="browser-bar-text">Für bessere Weiterleitung nach dem Verbinden:</span>
-  <button type="button" class="btn-browser" onclick="openInRealBrowser()">Im Browser öffnen ›</button>
-</div>
-
 <div class="scan-row">
   <span class="scan-lbl">WLAN-Netzwerke</span>
   <div class="spinner" id="spinner"></div>
@@ -97,18 +87,17 @@ input:focus{outline:none;border-color:#388bfd}
     <input type="password" id="manual-password" placeholder="Passwort" autocomplete="current-password">
     <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">*</button>
   </div>
-  <button type="button" class="btn btn-p" onclick="connectManual()">Verbinden &ndash; danach power-bridge.local im Browser &ouml;ffnen</button>
+  <button type="button" class="btn btn-p" onclick="connectManual()">Verbinden</button>
 </div>
 
 <div id="status-box" class="status"></div>
 
-<!-- Modal: URL kopieren nach dem Verbinden -->
+<!-- Modal: URL kopieren → startet Verbindung -->
 <div class="modal-ov hidden" id="url-modal">
   <div class="modal-card">
-    <p class="modal-title">Verbindung gespeichert ✓<br>Kopiere die Adresse und öffne sie nach ca. 30 s im Browser:</p>
-    <span class="modal-url">power-bridge.local</span>
-    <button type="button" class="btn-copy-modal" id="btn-copy-modal" onclick="modalCopy()">Adresse kopieren</button>
-    <button type="button" class="btn-close-modal" id="btn-close-modal" disabled onclick="modalClose()">Schließen (nach dem Kopieren)</button>
+    <p class="modal-title">Adresse kopieren und nach ca. 30 s im Browser öffnen:</p>
+    <span class="modal-url">http://power-bridge.local</span>
+    <button type="button" class="btn-copy-modal" id="btn-copy-modal" onclick="modalCopy()">Adresse kopieren &amp; Verbinden</button>
   </div>
 </div>
 
@@ -162,7 +151,7 @@ function renderNetworks(ssids){
           '<input type="password" id="inp-'+escAttr(s)+'" placeholder="Passwort" autocomplete="current-password">'+
           '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-'+escAttr(s)+'\',this)" title="Passwort anzeigen">*</button>'+
         '</div>'+
-        '<button type="button" class="btn btn-p" onclick="connectSelected(\''+escJs(s)+'\')">Verbinden &ndash; danach power-bridge.local im Browser &ouml;ffnen</button>'+
+        '<button type="button" class="btn btn-p" onclick="connectSelected(\''+escJs(s)+'\')">Verbinden</button>'+
       '</div>';
     list.appendChild(li);
   });
@@ -202,18 +191,18 @@ function connectManual(){
   pendingConnectPass=document.getElementById('manual-password').value;
   showUrlModal();
 }
-function openInRealBrowser(){
-  // Öffnet die aktuelle Seite in einem neuen Tab/Fenster (funktioniert auf iOS/Desktop).
-  // Auf Android-CNA wird window.open blockiert – dort hilft nur manuelle Eingabe.
-  window.open('http://'+window.location.host+window.location.pathname,'_blank');
-}
 function modalCopy(){
-  var url='power-bridge.local';
+  var url='http://power-bridge.local';
   var btn=document.getElementById('btn-copy-modal');
-  var closeBtn=document.getElementById('btn-close-modal');
   function done(){
-    btn.textContent='Kopiert ✓';btn.classList.add('done');
-    closeBtn.disabled=false;
+    btn.textContent='Kopiert ✓ – Verbindung wird gestartet…';
+    btn.classList.add('done');
+    btn.disabled=true;
+    // Verbindung starten, Modal nach kurzer Verzögerung schließen
+    doConnect(pendingConnectSSID, pendingConnectPass);
+    setTimeout(function(){
+      document.getElementById('url-modal').classList.add('hidden');
+    }, 1800);
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(url).then(done,done);
@@ -223,18 +212,12 @@ function modalCopy(){
     document.body.removeChild(t);done();
   }
 }
-function modalClose(){
-  document.getElementById('url-modal').classList.add('hidden');
-  // Erst jetzt Credentials absenden → AP bleibt bis hier oben
-  doConnect(pendingConnectSSID, pendingConnectPass);
-}
 function showUrlModal(){
-  document.getElementById('url-modal').classList.remove('hidden');
-  // Reset-Zustand
   var btn=document.getElementById('btn-copy-modal');
-  var closeBtn=document.getElementById('btn-close-modal');
-  btn.textContent='Adresse kopieren';btn.classList.remove('done');
-  closeBtn.disabled=true;
+  btn.textContent='Adresse kopieren & Verbinden';
+  btn.classList.remove('done');
+  btn.disabled=false;
+  document.getElementById('url-modal').classList.remove('hidden');
 }
 function toggleManual(){
   var sec=document.getElementById('manual-section');sec.classList.toggle('open');
