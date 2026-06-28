@@ -6,302 +6,235 @@
 <title>power-bridge – WLAN einrichten</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:1.5rem;max-width:440px;margin:0 auto}
-h1{color:#e94560;margin-bottom:.5rem;font-size:1.5rem;font-weight:700}
-p.sub{color:#aaa;font-size:.9rem;margin-bottom:1.75rem;line-height:1.5}
-
-.section-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem}
-.section-header span.label{font-size:.85rem;color:#aaa;flex:1}
-.spinner{width:14px;height:14px;border:2px solid #444;border-top-color:#e94560;border-radius:50%;
-  animation:spin .7s linear infinite;flex-shrink:0;display:none}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;padding:1.25rem 1rem;max-width:440px;margin:0 auto;font-size:14px}
+h1{font-size:.95rem;font-weight:600;margin-bottom:.25rem;letter-spacing:.01em}
+p.sub{color:#8b949e;font-size:.82rem;margin-bottom:1.5rem;line-height:1.5}
+.scan-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem}
+.scan-lbl{font-size:.75rem;color:#8b949e;flex:1}
+.spinner{width:13px;height:13px;border:2px solid #30363d;border-top-color:#388bfd;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;display:none}
 .spinner.active{display:block}
 @keyframes spin{to{transform:rotate(360deg)}}
-.refresh-btn{background:none;border:1px solid #333;color:#aaa;cursor:pointer;
-  font-size:.78rem;padding:.3rem .6rem;border-radius:.4rem;white-space:nowrap;transition:border-color .15s}
-.refresh-btn:hover{border-color:#e94560;color:#e94560}
+.refresh-btn{background:none;border:1px solid #30363d;color:#8b949e;cursor:pointer;font-size:.75rem;padding:.28rem .55rem;border-radius:.25rem;transition:border-color .15s,color .15s;white-space:nowrap}
+.refresh-btn:hover{border-color:#388bfd;color:#388bfd}
 .refresh-btn:disabled{opacity:.4;cursor:default}
-
-.net-list{list-style:none;border:1px solid #2a2a4a;border-radius:.6rem;overflow:hidden;margin-bottom:1rem}
-.net-list li{border-bottom:1px solid #2a2a4a}
+.net-list{list-style:none;border:1px solid #30363d;border-radius:.35rem;overflow:hidden;margin-bottom:.75rem}
+.net-list li{border-bottom:1px solid #21262d}
 .net-list li:last-child{border-bottom:none}
-.net-item{display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;cursor:pointer;
-  background:#0f3460;transition:background .15s;user-select:none}
-.net-item:hover{background:#143d73}
-.net-item.active{background:#1a4a8a}
-.net-icon{font-size:1rem;flex-shrink:0}
-.net-name{flex:1;font-size:.95rem}
-.net-arrow{color:#555;font-size:.8rem;transition:transform .2s}
-.net-item.active .net-arrow{transform:rotate(90deg)}
-.net-pw{padding:.75rem 1rem;background:#0a2240;display:none}
+.net-item{display:flex;align-items:center;gap:.5rem;padding:.55rem .75rem;cursor:pointer;background:#161b22;transition:background .15s;user-select:none}
+.net-item:hover{background:#21262d}
+.net-item.active{background:#0d2136}
+.net-name{flex:1;font-size:.85rem}
+.net-arrow{color:#484f58;font-size:.75rem;transition:transform .2s}
+.net-item.active .net-arrow{transform:rotate(90deg);color:#388bfd}
+.net-pw{padding:.55rem .75rem;background:#0d1117;display:none;border-top:1px solid #21262d}
 .net-pw.open{display:block}
-
 input[type="text"],input[type="password"]{
-  width:100%;padding:.65rem .75rem;border-radius:.5rem;border:1px solid #333;
-  background:#0f3460;color:#eee;font-size:1rem;
+  width:100%;padding:.4rem .6rem;border-radius:.3rem;border:1px solid #30363d;
+  background:#161b22;color:#e6edf3;font-size:.85rem;
   -webkit-appearance:none;appearance:none}
-input:focus{outline:none;border-color:#e94560}
-
+input:focus{outline:none;border-color:#388bfd}
 .pw-wrap{position:relative}
-.pw-wrap input{padding-right:3rem}
-.pw-toggle{position:absolute;right:.75rem;top:50%;transform:translateY(-50%);
-  background:none;border:none;color:#aaa;cursor:pointer;font-size:1.1rem;line-height:1}
-
-.btn{display:block;width:100%;padding:.75rem;border-radius:.5rem;border:none;
-  cursor:pointer;font-size:1rem;font-weight:600;transition:opacity .15s;text-align:center}
-.btn-primary{background:#e94560;color:#fff;margin-top:.75rem}
-.btn-secondary{background:#0f3460;color:#aaa;border:1px solid #2a2a4a;font-size:.9rem;margin-top:.25rem}
-.btn:hover{opacity:.85}
-.btn:disabled{opacity:.4;cursor:default}
-
-.manual-section{margin-top:.5rem;display:none}
+.pw-wrap input{padding-right:2.5rem}
+.pw-toggle{position:absolute;right:.6rem;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:#8b949e;cursor:pointer;font-size:.8rem;line-height:1;padding:.1rem}
+.pw-toggle:hover{color:#e6edf3}
+.btn{display:block;width:100%;padding:.5rem;border-radius:.3rem;border:none;
+  cursor:pointer;font-size:.85rem;font-weight:500;transition:opacity .15s;text-align:center}
+.btn-p{background:#1f6feb;color:#fff;margin-top:.55rem}
+.btn-sec{background:#21262d;color:#8b949e;border:1px solid #30363d;font-size:.8rem;margin-top:.25rem}
+.btn:hover{opacity:.85}.btn:disabled{opacity:.4;cursor:default}
+.manual-section{margin-top:.35rem;display:none}
 .manual-section.open{display:block}
-.manual-section input{margin-bottom:.75rem}
-
-.net-empty{padding:.75rem 1rem;color:#666;font-size:.9rem;background:#0f3460}
-
-.status{padding:.75rem 1rem;border-radius:.5rem;margin-top:1rem;font-size:.9rem;
-  display:none;line-height:1.5}
+.manual-section input{margin-bottom:.55rem}
+.net-empty{padding:.55rem .75rem;color:#484f58;font-size:.82rem;background:#161b22}
+.status{padding:.55rem .75rem;border-radius:.35rem;margin-top:.75rem;font-size:.82rem;display:none;line-height:1.5}
 .status.show{display:block}
-.status-connecting{background:#0c2340;color:#93c5fd}
-.status-success{background:#064e3b;color:#6ee7b7}
-.status-error{background:#4a0e0e;color:#f87171}
+.status-connecting{background:#0d2136;border:1px solid #1d4ed8;color:#93c5fd}
+.status-success{background:#0a1f10;border:1px solid #238636;color:#3fb950}
+.status-error{background:#1a0a0a;border:1px solid #8b1a1a;color:#f85149}
 </style>
 </head>
 <body>
-<h1>⚡ power-bridge</h1>
+<h1>power-bridge</h1>
 <p class="sub">Verbinde die Bridge mit deinem Heim-WLAN.</p>
 
-<div class="section-header">
-  <span class="label">WLAN-Netz</span>
+<div class="scan-row">
+  <span class="scan-lbl">WLAN-Netzwerke</span>
   <div class="spinner" id="spinner"></div>
   <button type="button" class="refresh-btn" id="refresh-btn" onclick="scanWifi()">Aktualisieren</button>
 </div>
 
 <ul class="net-list" id="net-list">
-  <li class="net-empty">Netzwerke werden geladen…</li>
+  <li class="net-empty">Netzwerke werden geladen...</li>
 </ul>
 
-<button type="button" class="btn btn-secondary" onclick="toggleManual()">WLAN manuell eintragen</button>
+<button type="button" class="btn btn-sec" onclick="toggleManual()">Manuell eingeben</button>
 <div class="manual-section" id="manual-section">
-  <input type="text" id="manual-ssid" placeholder="Netzwerkname (SSID)" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:.75rem">
+  <input type="text" id="manual-ssid" placeholder="Netzwerkname (SSID)" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:.55rem">
   <div class="pw-wrap">
     <input type="password" id="manual-password" placeholder="Passwort" autocomplete="current-password">
-    <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">👁</button>
+    <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">*</button>
   </div>
-  <button type="button" class="btn btn-primary" onclick="connectManual()">Verbinden</button>
+  <button type="button" class="btn btn-p" onclick="connectManual()">Verbinden</button>
 </div>
 
 <div id="status-box" class="status"></div>
 
 <script>
-var pollTimer = null;
-var pollStart = 0;
-var fetchFailures = 0;
-var expectedSSID = '';
-var lastStatus = null;
-var POLL_TIMEOUT_MS = 55000;
-var MAX_FETCH_FAILURES = 3;
-var FETCH_FAILURE_GRACE_MS = 15000;
-var activeSSID = null;
+var pollTimer=null,pollStart=0,fetchFailures=0,expectedSSID='',lastStatus=null;
+var POLL_TIMEOUT_MS=55000,MAX_FETCH_FAILURES=3,FETCH_FAILURE_GRACE_MS=15000;
+var activeSSID=null,pendingSSID='';
 
-window.addEventListener('load', function() {
+window.addEventListener('load',function(){
   scanWifi();
-  var params = new URLSearchParams(window.location.search);
-  var ssid = params.get('ssid');
-  if (ssid) { pendingSSID = ssid; }
+  var params=new URLSearchParams(window.location.search);
+  var ssid=params.get('ssid');if(ssid){pendingSSID=ssid;}
 });
 
-var pendingSSID = '';
-
-function scanWifi() {
-  var list = document.getElementById('net-list');
-  var btn = document.getElementById('refresh-btn');
-  var sp = document.getElementById('spinner');
-  list.innerHTML = '<li class="net-empty">Netzwerke werden geladen…</li>';
-  btn.disabled = true;
-  sp.classList.add('active');
-  activeSSID = null;
-
+function scanWifi(){
+  var list=document.getElementById('net-list');
+  var btn=document.getElementById('refresh-btn');
+  var sp=document.getElementById('spinner');
+  list.innerHTML='<li class="net-empty">Netzwerke werden geladen...</li>';
+  btn.disabled=true;sp.classList.add('active');activeSSID=null;
   fetch('/setup/scan')
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      btn.disabled = false;
-      sp.classList.remove('active');
-      var ssids = d.ssids || [];
-      if (ssids.length === 0) {
-        list.innerHTML = '<li class="net-empty">Keine Netzwerke gefunden.</li>';
-        return;
-      }
+    .then(function(r){return r.json();})
+    .then(function(d){
+      btn.disabled=false;sp.classList.remove('active');
+      var ssids=d.ssids||[];
+      if(!ssids.length){list.innerHTML='<li class="net-empty">Keine Netzwerke gefunden.</li>';return;}
       renderNetworks(ssids);
-      if (pendingSSID) {
-        var item = document.querySelector('[data-ssid="' + CSS.escape(pendingSSID) + '"]');
-        if (item) openNetwork(item, pendingSSID);
-        pendingSSID = '';
+      if(pendingSSID){
+        var item=document.querySelector('[data-ssid="'+CSS.escape(pendingSSID)+'"]');
+        if(item)openNetwork(item,pendingSSID);
+        pendingSSID='';
       }
     })
-    .catch(function() {
-      btn.disabled = false;
-      sp.classList.remove('active');
-      list.innerHTML = '<li class="net-empty">Suche fehlgeschlagen.</li>';
+    .catch(function(){
+      btn.disabled=false;sp.classList.remove('active');
+      list.innerHTML='<li class="net-empty">Suche fehlgeschlagen.</li>';
     });
 }
 
-function renderNetworks(ssids) {
-  var list = document.getElementById('net-list');
-  list.innerHTML = '';
-  ssids.forEach(function(s) {
-    var li = document.createElement('li');
-    li.innerHTML =
-      '<div class="net-item" data-ssid="' + escAttr(s) + '" onclick="onNetClick(this,\'' + escJs(s) + '\')">' +
-        '<span class="net-icon">📶</span>' +
-        '<span class="net-name">' + escHtml(s) + '</span>' +
-        '<span class="net-arrow">›</span>' +
-      '</div>' +
-      '<div class="net-pw" id="pw-' + escAttr(s) + '">' +
-        '<div class="pw-wrap">' +
-          '<input type="password" id="inp-' + escAttr(s) + '" placeholder="Passwort" autocomplete="current-password">' +
-          '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-' + escAttr(s) + '\',this)" title="Passwort anzeigen">👁</button>' +
-        '</div>' +
-        '<button type="button" class="btn btn-primary" onclick="connectSelected(\'' + escJs(s) + '\')">Verbinden</button>' +
+function renderNetworks(ssids){
+  var list=document.getElementById('net-list');list.innerHTML='';
+  ssids.forEach(function(s){
+    var li=document.createElement('li');
+    li.innerHTML=
+      '<div class="net-item" data-ssid="'+escAttr(s)+'" onclick="onNetClick(this,\''+escJs(s)+'\')">'+
+        '<span class="net-name">'+escHtml(s)+'</span>'+
+        '<span class="net-arrow">›</span>'+
+      '</div>'+
+      '<div class="net-pw" id="pw-'+escAttr(s)+'">'+
+        '<div class="pw-wrap">'+
+          '<input type="password" id="inp-'+escAttr(s)+'" placeholder="Passwort" autocomplete="current-password">'+
+          '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-'+escAttr(s)+'\',this)" title="Passwort anzeigen">*</button>'+
+        '</div>'+
+        '<button type="button" class="btn btn-p" onclick="connectSelected(\''+escJs(s)+'\')">Verbinden</button>'+
       '</div>';
     list.appendChild(li);
   });
 }
 
-function onNetClick(el, ssid) {
-  if (activeSSID === ssid) {
-    closeActive();
-    return;
-  }
-  if (activeSSID) closeActive();
-  openNetwork(el, ssid);
+function onNetClick(el,ssid){
+  if(activeSSID===ssid){closeActive();return;}
+  if(activeSSID)closeActive();
+  openNetwork(el,ssid);
 }
-
-function openNetwork(el, ssid) {
-  activeSSID = ssid;
-  el.classList.add('active');
-  var pw = document.getElementById('pw-' + ssid);
-  var inp = document.getElementById('inp-' + ssid);
-  pw.classList.add('open');
-  inp.focus();
-  inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') connectSelected(ssid);
+function openNetwork(el,ssid){
+  activeSSID=ssid;el.classList.add('active');
+  var pw=document.getElementById('pw-'+ssid);
+  var inp=document.getElementById('inp-'+ssid);
+  pw.classList.add('open');inp.focus();
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter')connectSelected(ssid);});
+}
+function closeActive(){
+  if(!activeSSID)return;
+  var el=document.querySelector('[data-ssid="'+CSS.escape(activeSSID)+'"]');
+  var pw=document.getElementById('pw-'+activeSSID);
+  if(el)el.classList.remove('active');if(pw)pw.classList.remove('open');
+  activeSSID=null;
+}
+function connectSelected(ssid){
+  var inp=document.getElementById('inp-'+ssid);
+  doConnect(ssid,inp?inp.value:'');
+}
+function connectManual(){
+  var ssid=document.getElementById('manual-ssid').value.trim();
+  var pass=document.getElementById('manual-password').value;
+  if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return;}
+  doConnect(ssid,pass);
+}
+function toggleManual(){
+  var sec=document.getElementById('manual-section');sec.classList.toggle('open');
+  if(sec.classList.contains('open')){document.getElementById('manual-ssid').focus();}
+}
+function togglePw(id,btn){
+  var inp=document.getElementById(id);
+  if(inp.type==='password'){inp.type='text';btn.textContent='[x]';btn.title='Passwort verbergen';}
+  else{inp.type='password';btn.textContent='*';btn.title='Passwort anzeigen';}
+}
+function doConnect(ssid,pass){
+  expectedSSID=ssid;
+  setStatus('status-connecting','Verbinde mit <b>'+escHtml(ssid)+'</b>...');
+  fetch('/wifi/connect',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(pass)
+  }).then(function(r){return r.json();})
+  .then(function(d){
+    if(d.error){setStatus('status-error',escHtml(d.error));return;}
+    setStatus('status-connecting','Verbindung wird hergestellt... Bitte warte ca. 30–45 Sekunden.');
+    pollStart=Date.now();fetchFailures=0;lastStatus=null;
+    pollTimer=setInterval(pollStatus,2500);
+  })
+  .catch(function(){
+    setStatus('status-connecting','Verbinde... Browser-Verbindung verloren. Bitte warten.');
+    pollStart=Date.now();fetchFailures=1;lastStatus=null;
+    pollTimer=setInterval(pollStatus,3000);
   });
 }
-
-function closeActive() {
-  if (!activeSSID) return;
-  var el = document.querySelector('[data-ssid="' + CSS.escape(activeSSID) + '"]');
-  var pw = document.getElementById('pw-' + activeSSID);
-  if (el) el.classList.remove('active');
-  if (pw) pw.classList.remove('open');
-  activeSSID = null;
-}
-
-function connectSelected(ssid) {
-  var inp = document.getElementById('inp-' + ssid);
-  doConnect(ssid, inp ? inp.value : '');
-}
-
-function connectManual() {
-  var ssid = document.getElementById('manual-ssid').value.trim();
-  var pass = document.getElementById('manual-password').value;
-  if (!ssid) { setStatus('status-error', '⚠ Bitte einen Netzwerknamen eingeben.'); return; }
-  doConnect(ssid, pass);
-}
-
-function toggleManual() {
-  var sec = document.getElementById('manual-section');
-  sec.classList.toggle('open');
-  if (sec.classList.contains('open')) {
-    document.getElementById('manual-ssid').focus();
-  }
-}
-
-function togglePw(id, btn) {
-  var inp = document.getElementById(id);
-  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; btn.title = 'Passwort verbergen'; }
-  else                         { inp.type = 'password'; btn.textContent = '👁'; btn.title = 'Passwort anzeigen'; }
-}
-
-function doConnect(ssid, pass) {
-  expectedSSID = ssid;
-  setStatus('status-connecting', '⏳ Verbinde mit <b>' + escHtml(ssid) + '</b>…');
-
-  fetch('/wifi/connect', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: 'ssid=' + encodeURIComponent(ssid) + '&password=' + encodeURIComponent(pass)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.error) { setStatus('status-error', '⚠ ' + escHtml(d.error)); return; }
-    setStatus('status-connecting', '⏳ Verbindung wird hergestellt… Bitte warte ca. 30–45 Sekunden.');
-    pollStart = Date.now(); fetchFailures = 0; lastStatus = null;
-    pollTimer = setInterval(pollStatus, 2500);
-  })
-  .catch(function() {
-    setStatus('status-connecting', '⏳ Verbinde… Browser-Verbindung verloren. Bitte warten.');
-    pollStart = Date.now(); fetchFailures = 1; lastStatus = null;
-    pollTimer = setInterval(pollStatus, 3000);
-  });
-}
-
-function pollStatus() {
-  if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+function pollStatus(){
+  if(Date.now()-pollStart>POLL_TIMEOUT_MS){
     clearInterval(pollTimer);
-    if (fetchFailures >= MAX_FETCH_FAILURES) { onConnected(); }
-    else {
-      setStatus('status-error',
-        '⚠ Zeitüberschreitung. Verbindung nicht erfolgreich oder SSID/Passwort prüfen.<br>' +
-        'Das Gerät fällt automatisch in den AP-Modus zurück.');
-    }
+    if(fetchFailures>=MAX_FETCH_FAILURES){onConnected();}
+    else{setStatus('status-error','Zeitüberschreitung. Verbindung nicht erfolgreich oder SSID/Passwort prüfen.<br>Das Gerät fällt automatisch in den AP-Modus zurück.');}
     return;
   }
-  fetch('/api/status', {signal: AbortSignal.timeout(2000)})
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      fetchFailures = 0; lastStatus = d;
-      var ssidMatches = !expectedSSID || d.wifi_connected_ssid === expectedSSID || d.wifi_ssid === expectedSSID;
-      if (!d.is_ap_mode && d.bridge_ip && d.bridge_ip !== '192.168.4.1' && ssidMatches) {
-        clearInterval(pollTimer); onConnected();
+  fetch('/api/status',{signal:AbortSignal.timeout(2000)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      fetchFailures=0;lastStatus=d;
+      var ssidOK=!expectedSSID||d.wifi_connected_ssid===expectedSSID||d.wifi_ssid===expectedSSID;
+      if(!d.is_ap_mode&&d.bridge_ip&&d.bridge_ip!=='192.168.4.1'&&ssidOK){
+        clearInterval(pollTimer);onConnected();
       }
     })
-    .catch(function() {
+    .catch(function(){
       fetchFailures++;
-      var elapsed = Date.now() - pollStart;
-      if (fetchFailures >= MAX_FETCH_FAILURES && elapsed >= FETCH_FAILURE_GRACE_MS) {
-        clearInterval(pollTimer); onConnected();
+      var elapsed=Date.now()-pollStart;
+      if(fetchFailures>=MAX_FETCH_FAILURES&&elapsed>=FETCH_FAILURE_GRACE_MS){
+        clearInterval(pollTimer);onConnected();
       }
     });
 }
-
-function onConnected() {
-  var ip = lastStatus && lastStatus.bridge_ip && lastStatus.bridge_ip !== '192.168.4.1'
-    ? lastStatus.bridge_ip : null;
-  var target = ip ? 'http://' + ip : 'http://power-bridge.local';
-  var extra = ip
-    ? '<br><span style="font-size:.82rem;color:#9ca3af">Alternativ: <a href="http://power-bridge.local" style="color:#6ee7b7">http://power-bridge.local</a></span>'
-    : '<br><span style="font-size:.82rem;color:#9ca3af">(mDNS – funktioniert nicht auf Android)</span>';
+function onConnected(){
+  var ip=lastStatus&&lastStatus.bridge_ip&&lastStatus.bridge_ip!=='192.168.4.1'?lastStatus.bridge_ip:null;
+  var target=ip?'http://'+ip:'http://power-bridge.local';
+  var extra=ip
+    ?'<br><span style="font-size:.78rem;color:#8b949e">Alternativ: <a href="http://power-bridge.local" style="color:#388bfd">http://power-bridge.local</a></span>'
+    :'<br><span style="font-size:.78rem;color:#8b949e">(mDNS – funktioniert nicht auf Android)</span>';
   setStatus('status-success',
-    '✅ Bridge verbunden!<br><br>' +
-    'Weiterleitung in 5 Sekunden…<br><br>' +
-    '<b><a href="' + target + '" style="color:#6ee7b7">' + target + '</a></b>' + extra);
-  setTimeout(function() { window.location.href = target; }, 5000);
+    'Bridge verbunden.<br><br>Weiterleitung in 5 Sekunden...<br><br>'+
+    '<a href="'+target+'" style="color:#3fb950;font-weight:600">'+target+'</a>'+extra);
+  setTimeout(function(){window.location.href=target;},5000);
 }
-
-function setStatus(cls, html) {
-  var box = document.getElementById('status-box');
-  box.className = 'status show ' + cls;
-  box.innerHTML = html;
+function setStatus(cls,html){
+  var box=document.getElementById('status-box');
+  box.className='status show '+cls;box.innerHTML=html;
 }
-
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-function escAttr(s) { return escHtml(s); }
-function escJs(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function escAttr(s){return escHtml(s);}
+function escJs(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 </script>
 </body>
 </html>

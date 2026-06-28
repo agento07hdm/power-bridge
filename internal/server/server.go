@@ -183,10 +183,6 @@ func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !s.cfg.Configured {
-		http.Redirect(w, r, "/setup", http.StatusFound)
-		return
-	}
 	s.statusPage(w, r)
 }
 

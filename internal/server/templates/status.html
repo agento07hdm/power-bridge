@@ -6,297 +6,361 @@
 <title>power-bridge</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:.75rem;max-width:520px;margin:0 auto}
-h1{color:#e94560;font-size:1.3rem;font-weight:700}
-h2{color:#aaa;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin:.1rem 0 .6rem}
-.header{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap}
-.header h1{flex:1;min-width:0}
-.lang-btn{background:none;border:none;cursor:pointer;font-size:1.3rem;padding:.1rem;opacity:.5;transition:opacity .15s}
-.lang-btn.active{opacity:1}
-.card{background:#16213e;border-radius:.75rem;padding:1rem 1.1rem;margin-bottom:.85rem}
-.row{display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid #1e2a50}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.5;padding:.75rem 1rem;max-width:520px;margin:0 auto}
+.hdr{display:flex;align-items:center;gap:.5rem;padding-bottom:.6rem;margin-bottom:.75rem;border-bottom:1px solid #21262d}
+.hdr-title{font-size:.95rem;font-weight:600;flex:1;letter-spacing:.01em}
+.sdot{width:8px;height:8px;border-radius:50%;background:#484f58;flex-shrink:0;transition:background .3s}
+.stxt{font-size:.72rem;color:#8b949e}
+.lbtn{background:none;border:1px solid transparent;cursor:pointer;font-size:.7rem;color:#8b949e;padding:.1rem .3rem;border-radius:.2rem;transition:all .15s}
+.lbtn.active{color:#e6edf3;background:#21262d;border-color:#30363d}
+.sec-hdr{font-size:.65rem;text-transform:uppercase;letter-spacing:.09em;color:#6e7681;padding:.55rem 0 .2rem;margin-bottom:.05rem}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:.28rem 0;border-bottom:1px solid #161b22}
 .row:last-child{border-bottom:none}
-.label{font-size:.82rem;color:#8a96aa}
-.value{font-size:.9rem;font-weight:600;text-align:right;word-break:break-all;max-width:60%}
-.ok{color:#6ee7b7}.err{color:#f87171}.warn{color:#fcd34d}
-.big-watt{font-size:1.9rem;font-weight:700;color:#e94560;text-align:center;padding:.4rem 0 .2rem}
-.kwh-row{display:flex;justify-content:center;gap:1.4rem;font-size:.82rem;color:#aaa;margin-bottom:.5rem}
-.btn{display:inline-flex;align-items:center;padding:.5rem 1rem;border-radius:.5rem;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:opacity .15s;margin:.25rem .2rem .25rem 0}
-.btn-primary{background:#e94560;color:#fff}
-.btn-secondary{background:#0f3460;color:#eee;border:1px solid #333}
-.btn-danger{background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b}
-.btn:hover{opacity:.82}.btn:disabled{opacity:.35;cursor:default}
-.badge{display:inline-block;padding:.2rem .55rem;border-radius:2rem;font-size:.75rem;font-weight:700}
-.badge-ok{background:#064e3b;color:#6ee7b7}
-.badge-err{background:#450a0a;color:#f87171}
-.badge-warn{background:#422006;color:#fcd34d}
-.traffic-wrap{display:flex;align-items:center;gap:.45rem;background:#0f3460;border-radius:2rem;padding:.25rem .7rem .25rem .4rem}
-.traffic-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
-.traffic-text{font-size:.75rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
-.update-banner{background:#1e3a5f;border:1px solid #3b82f6;border-radius:.6rem;padding:.7rem 1rem;margin-bottom:.85rem;display:none;align-items:center;gap:.6rem;flex-wrap:wrap}
-.update-info{flex:1;font-size:.85rem;color:#93c5fd}
-details{margin-top:.5rem}
-summary{cursor:pointer;font-size:.82rem;color:#5b8dee;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem}
+.lbl{font-size:.78rem;color:#8b949e;flex-shrink:0;padding-right:.5rem}
+.val{font-size:.82rem;font-weight:500;text-align:right;word-break:break-all;max-width:68%}
+.mono{font-family:ui-monospace,monospace;font-size:.72rem}
+.big-val{font-size:1.55rem;font-weight:600;text-align:center;padding:.45rem 0 .15rem}
+.sub-vals{display:flex;justify-content:center;gap:1.4rem;font-size:.72rem;color:#8b949e;margin-bottom:.15rem}
+.sdot-row{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-right:.3rem;vertical-align:middle}
+.ok{background:#3fb950}.err{background:#f85149}.warn{background:#d29922}
+.btn{display:inline-flex;align-items:center;padding:.32rem .7rem;border-radius:.3rem;border:1px solid #30363d;cursor:pointer;font-size:.78rem;font-weight:500;background:#21262d;color:#e6edf3;transition:opacity .15s;margin:.2rem .15rem .2rem 0}
+.btn:hover{opacity:.8}.btn:disabled{opacity:.35;cursor:default}
+.btn-p{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.btn-d{border-color:#f85149;color:#f85149}
+.btn-full{width:100%;justify-content:center;margin:.5rem 0 0}
+.inp{width:100%;padding:.35rem .55rem;background:#0d1117;border:1px solid #30363d;border-radius:.3rem;color:#e6edf3;font-size:.82rem;margin-bottom:.05rem}
+.inp:focus{outline:none;border-color:#388bfd}
+.sel{width:100%;padding:.35rem .55rem;background:#0d1117;border:1px solid #30363d;border-radius:.3rem;color:#e6edf3;font-size:.82rem}
+.hint{font-size:.66rem;color:#484f58;margin-bottom:.35rem}
+.field-lbl{font-size:.7rem;color:#8b949e;display:block;margin:.4rem 0 .12rem}
+details{margin:.3rem 0}
+summary{cursor:pointer;font-size:.78rem;color:#388bfd;list-style:none;display:flex;align-items:center;gap:.3rem;padding:.22rem 0;user-select:none}
 summary::-webkit-details-marker{display:none}
-summary::before{content:'\25B6';display:inline-block;transition:transform .2s;font-size:.7rem}
-details[open] summary::before{transform:rotate(90deg)}
-.details-body{padding:.5rem 0 0 .5rem}
-.endpoints{font-family:monospace;font-size:.78rem}
-.endpoint{display:block;color:#5b8dee;padding:.15rem 0;text-decoration:none}
-.endpoint:hover{color:#93c5fd}
-.wifi-row{display:flex;align-items:center;gap:.5rem}
-.wifi-icon{flex-shrink:0}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;padding:1rem}
-.modal-box{background:#16213e;border-radius:.75rem;padding:1.1rem;width:100%;max-width:480px}
-.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
-.modal-title{font-size:1rem;font-weight:700;color:#e94560}
-.mono{font-family:monospace;font-size:.82rem;color:#9ca3af}
+summary::before{content:'+';font-size:.82rem;width:.85em;text-align:center;flex-shrink:0;font-weight:700}
+details[open] summary::before{content:'-'}
+.det{padding:.3rem 0 0}
+.scan-list{list-style:none;border:1px solid #30363d;border-radius:.3rem;overflow:hidden;margin:.25rem 0}
+.scan-item{padding:.3rem .6rem;cursor:pointer;border-bottom:1px solid #21262d;font-size:.8rem}
+.scan-item:last-child{border-bottom:none}
+.scan-item:hover{background:#161b22}
+.scan-item.sel{background:#0d2136;color:#93c5fd}
+.ep-list{font-family:ui-monospace,monospace;font-size:.68rem}
+.ep-link{display:block;color:#388bfd;padding:.08rem 0;text-decoration:none}
+.ep-link:hover{text-decoration:underline}
+.banner{background:#0d2136;border:1px solid #1d4ed8;border-radius:.3rem;padding:.45rem .7rem;margin-bottom:.55rem;display:none;align-items:center;gap:.45rem;flex-wrap:wrap}
+.banner-txt{flex:1;font-size:.78rem;color:#93c5fd}
+.ap-box{background:#110c00;border:1px solid #5c3c00;border-radius:.4rem;padding:.65rem .8rem;margin-bottom:.6rem;display:none}
+.ap-title{font-weight:600;color:#e6a817;font-size:.85rem;margin-bottom:.3rem}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-box{background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:.9rem;width:100%;max-width:400px}
+.modal-title{font-weight:600;font-size:.9rem;margin-bottom:.4rem}
+.modal-body{font-size:.8rem;color:#8b949e;white-space:pre-line;line-height:1.6;margin-bottom:.75rem}
+.modal-actions{display:flex;justify-content:flex-end;gap:.4rem}
+.dev-list{list-style:none;border:1px solid #30363d;border-radius:.3rem;overflow:hidden;margin:.25rem 0}
+.dev-item{padding:.3rem .6rem;cursor:pointer;border-bottom:1px solid #21262d;font-size:.78rem;display:flex;align-items:center;gap:.5rem}
+.dev-item:last-child{border-bottom:none}
+.dev-item:hover{background:#161b22}
+.dev-item.sel{background:#0d2136}
+.dev-dot{width:7px;height:7px;border-radius:50%;background:#484f58;flex-shrink:0;transition:background .3s}
+.dev-ip{font-family:ui-monospace,monospace;flex:1}
+.dev-watt{font-size:.72rem;color:#8b949e;text-align:right}
 </style>
 </head>
 <body>
 
 <!-- Header -->
-<div class="header">
-  <h1>&#x26A1; power-bridge</h1>
-  <div id="traffic-wrap" class="traffic-wrap">
-    <div id="traffic-dot" class="traffic-dot" style="background:#fbbf24"></div>
-    <span id="traffic-text" class="traffic-text" data-i18n="status_wait">&#x2026;</span>
-  </div>
-  <button class="lang-btn active" id="btn-de" onclick="setLang('de')" title="Deutsch">&#x1F1E9;&#x1F1EA;</button>
-  <button class="lang-btn" id="btn-en" onclick="setLang('en')" title="English">&#x1F1EC;&#x1F1E7;</button>
+<div class="hdr">
+  <span class="hdr-title">power-bridge</span>
+  <span class="sdot" id="sdot"></span>
+  <span class="stxt" id="stxt" data-i18n="status_wait">...</span>
+  <button class="lbtn active" id="btn-de" onclick="setLang('de')">DE</button>
+  <button class="lbtn" id="btn-en" onclick="setLang('en')">EN</button>
 </div>
 
-<!-- OTA Update Banner -->
-<div class="update-banner" id="update-banner">
-  <span class="update-info" id="update-info"></span>
-  <button class="btn btn-primary" onclick="applyUpdate()" id="btn-update" data-i18n="btn_update">&#x2B06; Aktualisieren</button>
-  <button class="btn btn-secondary" onclick="dismissUpdate()" style="padding:.4rem .7rem">&#x2715;</button>
+<!-- OTA update banner -->
+<div class="banner" id="update-banner">
+  <span class="banner-txt" id="update-info"></span>
+  <button class="btn btn-p" onclick="applyUpdate()" id="btn-update" data-i18n="btn_update">Aktualisieren</button>
+  <button class="btn" onclick="dismissUpdate()" style="padding:.28rem .5rem">&times;</button>
 </div>
 
-<!-- Section 1: poweropti -->
-<div class="card">
-  <h2 data-i18n="section_poweropti">&#x1F4E1; poweropti</h2>
-  <div class="row">
-    <span class="label" data-i18n="lbl_ip">IP-Adresse</span>
-    <span class="value mono" id="po-ip">&#x2013;</span>
+<!-- AP mode: WiFi setup -->
+<div class="ap-box" id="ap-box">
+  <div class="ap-title" data-i18n="ap_title">WLAN einrichten</div>
+  <p style="font-size:.78rem;color:#8b949e;margin-bottom:.45rem" data-i18n="ap_hint">Wähle ein Netzwerk oder gib SSID manuell ein.</p>
+  <div style="font-size:.7rem;color:#8b949e;margin-bottom:.2rem" id="ap-scan-state"></div>
+  <ul class="scan-list" id="ap-ssid-list" style="display:none"></ul>
+  <button class="btn" style="font-size:.7rem;margin:.25rem 0" onclick="apScan()" data-i18n="btn_rescan">Suche aktualisieren</button>
+  <label class="field-lbl" data-i18n="lbl_ssid">WLAN-Name (SSID)</label>
+  <input class="inp" type="text" id="ap-ssid" placeholder="Mein-WLAN" autocomplete="off">
+  <label class="field-lbl" data-i18n="lbl_password">Passwort</label>
+  <input class="inp" type="password" id="ap-pw">
+  <button class="btn btn-p btn-full" onclick="apConnect()" data-i18n="btn_connect">Verbinden</button>
+  <p id="ap-msg" style="margin-top:.3rem;font-size:.75rem;color:#8b949e"></p>
+</div>
+
+<!-- Readings -->
+<div id="sec-readings" style="display:none;margin-bottom:.6rem">
+  <div class="sec-hdr" data-i18n="section_readings">Messwerte</div>
+  <div class="big-val" id="watt-display">– W</div>
+  <div class="sub-vals">
+    <span id="consumed-display"></span>
+    <span id="delivered-display"></span>
   </div>
   <div class="row">
-    <span class="label" data-i18n="lbl_mac">MAC-Adresse</span>
-    <span class="value mono" id="po-mac">&#x2013;</span>
-  </div>
-  <div class="row">
-    <span class="label" data-i18n="lbl_status">Status</span>
-    <span id="po-badge" class="badge badge-warn">&#x2026;</span>
-  </div>
-  <div id="po-error" style="display:none;color:#f87171;font-size:.78rem;padding:.3rem 0 0"></div>
-  <div style="margin-top:.6rem">
-    <div class="big-watt" id="watt-display">&#x2013; W</div>
-    <div class="kwh-row">
-      <span id="consumed-display"></span>
-      <span id="delivered-display"></span>
-    </div>
-    <div style="text-align:center;font-size:.75rem;color:#6b7280;margin-bottom:.4rem" id="po-age"></div>
+    <span class="lbl" data-i18n="lbl_last_reading">Letzte Messung</span>
+    <span class="val mono" id="reading-age">–</span>
   </div>
 </div>
 
-<!-- Section 2: power-bridge -->
-<div class="card">
-  <h2 data-i18n="section_bridge">&#x1F50C; power-bridge</h2>
+<!-- Status -->
+<div style="margin-bottom:.6rem">
+  <div class="sec-hdr" data-i18n="section_status">Status</div>
   <div class="row">
-    <span class="label" data-i18n="lbl_ip">IP-Adresse</span>
-    <span class="value mono" id="br-ip">&#x2013;</span>
+    <span class="lbl">poweropti</span>
+    <span class="val"><span class="sdot-row" id="po-dot"></span><span id="po-txt">–</span></span>
+  </div>
+  <div class="row" id="err-row" style="display:none">
+    <span class="lbl" data-i18n="lbl_error">Fehler</span>
+    <span class="val mono" id="err-txt" style="color:#f85149;font-size:.7rem;max-width:75%"></span>
   </div>
   <div class="row">
-    <span class="label" data-i18n="lbl_mac">MAC-Adresse</span>
-    <span class="value mono" id="br-mac">&#x2013;</span>
+    <span class="lbl" data-i18n="lbl_po_ip">poweropti IP</span>
+    <span class="val mono" id="po-ip-disp">–</span>
   </div>
   <div class="row">
-    <span class="label" data-i18n="lbl_wifi_status">WLAN</span>
-    <span id="br-wifi-status" class="value" style="display:flex;align-items:center;gap:.4rem;justify-content:flex-end">
-      <svg id="wifi-icon" class="wifi-icon" width="28" height="22" viewBox="0 0 28 22" aria-hidden="true">
-        <path id="wi4" d="M1,10 Q14,0 27,10" stroke="#444" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <path id="wi3" d="M4.5,14 Q14,5 23.5,14" stroke="#444" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <path id="wi2" d="M8.5,18 Q14,11 19.5,18" stroke="#444" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <circle id="wi1" cx="14" cy="21" r="2" fill="#444"/>
-      </svg>
-      <span id="wifi-label">&#x2013;</span>
-    </span>
+    <span class="lbl">WLAN</span>
+    <span class="val" id="wifi-txt">–</span>
   </div>
   <div class="row">
-    <span class="label">RSSI</span>
-    <span class="value mono" id="br-rssi">&#x2013;</span>
+    <span class="lbl" data-i18n="lbl_bridge_ip">Bridge IP</span>
+    <span class="val mono" id="br-ip">–</span>
   </div>
+  <div class="row">
+    <span class="lbl">RSSI</span>
+    <span class="val mono" id="br-rssi">–</span>
+  </div>
+</div>
 
-  <!-- Shelly emulation (collapsible) -->
-  <details style="margin-top:.6rem">
-    <summary data-i18n="section_shelly">Shelly-Emulation</summary>
-    <div class="details-body">
-      <div class="row">
-        <span class="label">Shelly-ID</span>
-        <span class="value mono" id="sh-id" style="font-size:.75rem">&#x2013;</span>
-      </div>
-      <div class="row">
-        <span class="label" data-i18n="lbl_mac">MAC</span>
-        <span class="value mono" id="sh-mac">&#x2013;</span>
-      </div>
-      <div class="row">
-        <span class="label" data-i18n="lbl_model">Modell</span>
-        <span class="value" id="sh-model">&#x2013;</span>
-      </div>
-      <div class="row">
-        <span class="label" data-i18n="lbl_phase">Phasenverteilung</span>
-        <span class="value" id="sh-phase">&#x2013;</span>
-      </div>
-      <div style="margin-top:.6rem">
-        <div class="label" style="margin-bottom:.4rem" data-i18n="lbl_endpoints">Endpunkte</div>
-        <div class="endpoints">
-          <a class="endpoint" href="/rpc/EM.GetStatus?id=0" target="_blank">/rpc/EM.GetStatus?id=0</a>
-          <a class="endpoint" href="/rpc/Shelly.GetStatus" target="_blank">/rpc/Shelly.GetStatus</a>
-          <a class="endpoint" href="/rpc/Shelly.GetDeviceInfo" target="_blank">/rpc/Shelly.GetDeviceInfo</a>
-          <a class="endpoint" href="/rpc/Shelly.GetConfig" target="_blank">/rpc/Shelly.GetConfig</a>
-          <a class="endpoint" href="/rpc/Shelly.GetComponents" target="_blank">/rpc/Shelly.GetComponents</a>
+<!-- Settings (collapsible, auto-opened when not configured) -->
+<details id="det-settings" style="margin-bottom:.35rem">
+  <summary data-i18n="section_settings">Einstellungen</summary>
+  <div class="det">
+    <form method="POST" action="/setup/save" id="settings-form">
+      <input type="hidden" name="wifi_ssid" id="f-wifi-ssid" value="{{.Cfg.WIFISSID}}">
+      <input type="hidden" name="wifi_password" id="f-wifi-pw" value="{{.Cfg.WIFIPassword}}">
+      <input type="hidden" name="device_profile" value="{{.Cfg.DeviceProfile}}">
+
+      <!-- poweropti -->
+      <div class="sec-hdr" style="margin-top:.15rem" data-i18n="section_poweropti">poweropti</div>
+      <div style="font-size:.7rem;color:#8b949e;margin-bottom:.2rem" id="po-scan-state"></div>
+      <ul class="dev-list" id="po-dev-list" style="display:none"></ul>
+      <details id="po-manual-det" style="margin:.2rem 0">
+        <summary data-i18n="po_manual">Manuell eingeben</summary>
+        <div class="det">
+          <label class="field-lbl" data-i18n="lbl_po_ip">IP-Adresse</label>
+          <input class="inp" type="text" name="poweropti_ip" id="po-ip-inp" value="{{.Cfg.PoweroptiIP}}" placeholder="192.168.1.100">
+          <label class="field-lbl" data-i18n="lbl_po_key">API-Key</label>
+          <input class="inp" type="text" name="poweropti_api_key" id="po-key-inp" value="{{.Cfg.PoweroptiAPIKey}}" placeholder="aabbccddeeff">
+          <p class="hint" data-i18n="hint_api_key">12 Hex-Zeichen (MAC ohne Doppelpunkte)</p>
         </div>
+      </details>
+
+      <!-- WLAN -->
+      <div class="sec-hdr" data-i18n="section_wifi_cfg">WLAN</div>
+      <div class="row" style="margin-bottom:.3rem">
+        <span class="lbl" data-i18n="lbl_current_wifi">Aktuell</span>
+        <span class="val" id="wifi-current">–</span>
+      </div>
+      <button type="button" class="btn btn-d" onclick="wifiForget()" data-i18n="btn_wifi_forget">WLAN vergessen</button>
+      <p id="forget-msg" style="display:none;font-size:.74rem;margin:.3rem 0;color:#8b949e"></p>
+      <details style="margin-top:.35rem">
+        <summary data-i18n="lbl_change_wifi">WLAN wechseln</summary>
+        <div class="det">
+          <div style="font-size:.7rem;color:#8b949e;margin-bottom:.15rem" id="wifi-scan-state"></div>
+          <ul class="scan-list" id="wifi-scan-list" style="display:none"></ul>
+          <button type="button" class="btn" style="font-size:.7rem;margin:.25rem 0" onclick="wifiScan()" data-i18n="btn_rescan">Suche aktualisieren</button>
+          <div id="wifi-pw-sec" style="display:none">
+            <label class="field-lbl" data-i18n="lbl_password">Passwort</label>
+            <input class="inp" type="password" id="wifi-new-pw" autocomplete="current-password">
+          </div>
+        </div>
+      </details>
+
+      <!-- Erweiterte Einstellungen -->
+      <details style="margin-top:.35rem">
+        <summary data-i18n="adv_settings">Erweiterte Einstellungen</summary>
+        <div class="det">
+          <label class="field-lbl" data-i18n="lbl_shelly_mac">Shelly MAC</label>
+          <input class="inp" type="text" name="shelly_mac" value="{{.Cfg.ShellyMAC}}" placeholder="AA:BB:CC:DD:EE:FF" pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$">
+          <label class="field-lbl" data-i18n="lbl_hostname">Hostname</label>
+          <input class="inp" type="text" name="hostname" value="{{.Cfg.Hostname}}">
+          <p class="hint" data-i18n="hint_hostname">Erscheint als &lt;hostname&gt;.local im Netz</p>
+          <label class="field-lbl" data-i18n="lbl_phase">Phasenverteilung</label>
+          <select class="sel" name="phase_mode" id="phase-sel">
+            <option value="equal" data-i18n-o="phase_equal">Gleich (L1=L2=L3)</option>
+            <option value="l1" data-i18n-o="phase_l1">Alles auf L1</option>
+          </select>
+        </div>
+      </details>
+
+      <button type="submit" class="btn btn-p btn-full" data-i18n="btn_save">Speichern</button>
+    </form>
+  </div>
+</details>
+
+<!-- System (collapsible) -->
+<details style="margin-bottom:.35rem">
+  <summary data-i18n="section_system">System</summary>
+  <div class="det">
+    <div class="row">
+      <span class="lbl" data-i18n="lbl_version">Version</span>
+      <span class="val mono" id="ver-display">–</span>
+    </div>
+    <div class="row">
+      <span class="lbl">Bridge MAC</span>
+      <span class="val mono" id="br-mac">–</span>
+    </div>
+    <div style="margin-top:.45rem">
+      <button class="btn" onclick="doRestart()" data-i18n="btn_restart">Neustart</button>
+      <button class="btn btn-d" onclick="openResetModal()" data-i18n="reset_btn">Zurücksetzen</button>
+    </div>
+    <p id="action-msg" style="font-size:.74rem;color:#8b949e;margin-top:.25rem"></p>
+  </div>
+</details>
+
+<!-- Shelly-Emulation (collapsible) -->
+<details style="margin-bottom:.35rem">
+  <summary data-i18n="section_shelly">Shelly-Emulation</summary>
+  <div class="det">
+    <div class="row">
+      <span class="lbl">Shelly-ID</span>
+      <span class="val mono" id="sh-id" style="font-size:.68rem">–</span>
+    </div>
+    <div class="row">
+      <span class="lbl">MAC</span>
+      <span class="val mono" id="sh-mac">–</span>
+    </div>
+    <div class="row">
+      <span class="lbl" data-i18n="lbl_model">Modell</span>
+      <span class="val" id="sh-model">–</span>
+    </div>
+    <div class="row">
+      <span class="lbl" data-i18n="lbl_phase">Phase</span>
+      <span class="val" id="sh-phase">–</span>
+    </div>
+    <div style="margin-top:.45rem">
+      <div style="font-size:.7rem;color:#8b949e;margin-bottom:.2rem" data-i18n="lbl_endpoints">Endpunkte</div>
+      <div class="ep-list">
+        <a class="ep-link" href="/rpc/EM.GetStatus?id=0" target="_blank">/rpc/EM.GetStatus?id=0</a>
+        <a class="ep-link" href="/rpc/Shelly.GetStatus" target="_blank">/rpc/Shelly.GetStatus</a>
+        <a class="ep-link" href="/rpc/Shelly.GetDeviceInfo" target="_blank">/rpc/Shelly.GetDeviceInfo</a>
+        <a class="ep-link" href="/rpc/Shelly.GetConfig" target="_blank">/rpc/Shelly.GetConfig</a>
+        <a class="ep-link" href="/rpc/Shelly.GetComponents" target="_blank">/rpc/Shelly.GetComponents</a>
       </div>
     </div>
-  </details>
-</div>
-
-<!-- Section 3: WLAN config -->
-<div class="card">
-  <h2 data-i18n="section_wifi">&#x1F4F6; WLAN-Konfiguration</h2>
-  <div class="row">
-    <span class="label" data-i18n="lbl_current_wifi">Aktuelles WLAN</span>
-    <span class="value" id="wifi-current">&#x2013;</span>
   </div>
-  <div style="margin-top:.75rem">
-    <button class="btn btn-danger" onclick="wifiForget()" data-i18n="btn_wifi_forget">&#x1F5D1; WLAN vergessen</button>
-  </div>
-  <div id="forget-info" style="display:none;margin-top:.6rem;font-size:.82rem;color:#6ee7b7;background:#064e3b;padding:.5rem .75rem;border-radius:.4rem"></div>
+</details>
 
-  <!-- Nearby networks -->
-  <details id="scan-details" style="margin-top:.75rem">
-    <summary data-i18n="lbl_scan_networks">Netzwerke in der Umgebung</summary>
-    <div class="details-body">
-      <button class="btn btn-secondary" style="margin-bottom:.4rem;font-size:.78rem" onclick="scanWifiStatus()" data-i18n="btn_scan">&#x1F50D; Suche aktualisieren</button>
-      <ul id="ssid-status-list" style="list-style:none;background:#0f3460;border-radius:.5rem;padding:.4rem"></ul>
-    </div>
-  </details>
-</div>
-
-<!-- Actions row -->
-<div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem">
-  <button class="btn btn-primary" onclick="restartService()" data-i18n="btn_restart">&#x1F504; Neustart</button>
-  <a href="/setup" class="btn btn-secondary" data-i18n="btn_settings">&#x2699; Einstellungen</a>
-  <button class="btn btn-danger" onclick="openResetModal()" data-i18n="reset_btn">&#x267B; Gerät zurücksetzen</button>
-  <span style="flex:1"></span>
-  <span class="mono" id="ver-display" style="font-size:.72rem;color:#4b5563"></span>
-</div>
-<p id="action-msg" style="font-size:.78rem;color:#aaa;margin-bottom:.5rem"></p>
-
-<!-- Factory-Reset modal -->
-<div class="modal-overlay" id="reset-modal" onclick="closeResetIfBg(event)">
+<!-- Factory-Reset Modal -->
+<div class="modal-ov" id="reset-modal" onclick="closeResetIfBg(event)">
   <div class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title" id="reset-modal-title" data-i18n="reset_modal_title">&#x26A0; Gerät zurücksetzen</span>
-      <button class="btn btn-secondary" onclick="closeResetModal()" style="padding:.3rem .7rem">&#x2715;</button>
+    <div class="modal-title" id="reset-title" data-i18n="reset_modal_title">Gerät zurücksetzen</div>
+    <div class="modal-body" id="reset-body"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeResetModal()" id="reset-cancel" data-i18n="reset_cancel">Abbrechen</button>
+      <button class="btn btn-d" onclick="doFactoryReset()" id="reset-confirm" data-i18n="reset_confirm_label">Ja, zurücksetzen</button>
     </div>
-    <p id="reset-modal-body" style="font-size:.87rem;color:#ccc;white-space:pre-line;margin-bottom:1rem"></p>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end">
-      <button class="btn btn-secondary" onclick="closeResetModal()" id="reset-cancel-btn" data-i18n="reset_cancel">Abbrechen</button>
-      <button class="btn btn-danger" onclick="doFactoryReset()" id="reset-confirm-btn" data-i18n="reset_confirm_label">Ja, zurücksetzen</button>
-    </div>
-    <p id="reset-msg" style="display:none;margin-top:.6rem;font-size:.82rem;color:#f87171;background:#4a0e0e;padding:.5rem .75rem;border-radius:.4rem"></p>
+    <p id="reset-msg" style="display:none;margin-top:.45rem;font-size:.76rem"></p>
   </div>
 </div>
 
-<!-- Factory-Reset Feedback Overlay (shown after successful reset) -->
-<div class="modal-overlay" id="reset-feedback-overlay" style="display:none">
-  <div class="modal-box" style="text-align:center;padding:1.5rem 1.1rem">
-    <div style="font-size:2.5rem;margin-bottom:1rem">&#x26A1;</div>
-    <h2 style="color:#eee;font-size:1.05rem;font-weight:700;margin-bottom:.85rem" data-i18n="reset_feedback_title">Gerät wird zurückgesetzt</h2>
-    <p style="font-size:.9rem;color:#aaa;line-height:1.7" id="reset-feedback-body">
-      Die power-bridge wechselt jetzt in den Einrichtungsmodus.<br><br>
-      Das WLAN <strong style="color:#eee">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>
-      Verbinde dich damit und öffne:<br>
-      <a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>
-    </p>
+<!-- Factory-Reset Feedback Overlay -->
+<div class="modal-ov" id="reset-done-ov" style="display:none">
+  <div class="modal-box" style="text-align:center;padding:1.4rem .9rem">
+    <div style="font-weight:700;font-size:.95rem;margin-bottom:.55rem">power-bridge</div>
+    <div class="modal-title" style="margin-bottom:.55rem" data-i18n="reset_feedback_title">Gerät wird zurückgesetzt</div>
+    <div id="reset-done-body" style="font-size:.8rem;color:#8b949e;line-height:1.75"></div>
   </div>
 </div>
 
 <script>
 var T={de:{
-  section_poweropti:'\u{1F4E1} poweropti',section_bridge:'\u{1F50C} power-bridge',
-  section_shelly:'Shelly-Emulation',section_wifi:'\u{1F4F6} WLAN-Konfiguration',
-  lbl_ip:'IP-Adresse',lbl_mac:'MAC-Adresse',lbl_status:'Status',
-  lbl_wifi_status:'WLAN',lbl_model:'Modell',lbl_phase:'Phasenverteilung',
-  lbl_endpoints:'Endpunkte',lbl_current_wifi:'Aktuelles WLAN',
-  lbl_scan_networks:'Netzwerke in der Umgebung',
-  po_ok:'✓ Verbunden',po_err:'✗ Nicht erreichbar',
-  wifi_connected:'Verbunden',wifi_ap:'AP-Modus (Setup)',wifi_no_ssid:'Nicht verbunden',
-  status_ok:'Alles in Ordnung',status_warn:'Verbunden – poweropti nicht erreichbar',
-  status_err:'AP-Modus – Setup erforderlich',status_wait:'…',
-  btn_wifi_change:'\u{1F527} WLAN ändern',
-  btn_wifi_forget:'\u{1F5D1} WLAN vergessen',btn_scan:'\u{1F50D} Suche aktualisieren',
-  btn_restart:'\u{1F504} Neustart',btn_settings:'⚙ Einstellungen',
-  btn_update:'⬆ Aktualisieren',update_available:'Update verfügbar',
-  update_started:'Update wird eingespielt…',
-  update_done:'✓ Neueste Version installiert',
-  forget_confirm:'WLAN-Zugangsdaten wirklich löschen? Die power-bridge wechselt in den AP-Modus.',
-  reset_btn:'♻ Gerät zurücksetzen',
-  reset_modal_title:'Factory-Reset bestätigen',
-  reset_modal_body:'Alle benutzerspezifischen Daten werden gelöscht:\n• WLAN-Name und Passwort\n• poweropti-IP und API-Schlüssel\n\nDas Gerät startet danach im Setup-Modus und kann einem neuen Nutzer übergeben werden.',
-  reset_confirm_label:'Ja, Gerät zurücksetzen',
-  reset_cancel:'Abbrechen',
-  reset_progress:'Zurücksetzen…',
+  status_ok:'Betrieb normal',status_warn:'poweropti nicht erreichbar',
+  status_err:'AP-Modus – Einrichtung erforderlich',status_wait:'...',
+  section_readings:'Messwerte',section_status:'Status',section_settings:'Einstellungen',
+  section_poweropti:'poweropti',section_wifi_cfg:'WLAN',section_system:'System',
+  section_shelly:'Shelly-Emulation',
+  lbl_last_reading:'Letzte Messung',lbl_error:'Fehler',lbl_po_ip:'poweropti IP',
+  lbl_bridge_ip:'Bridge IP',lbl_version:'Version',lbl_model:'Modell',lbl_phase:'Phase',
+  lbl_endpoints:'Endpunkte',lbl_current_wifi:'Aktuell',lbl_change_wifi:'WLAN wechseln',
+  lbl_ssid:'WLAN-Name (SSID)',lbl_password:'Passwort',lbl_po_key:'API-Key',
+  lbl_shelly_mac:'Shelly MAC',lbl_hostname:'Hostname',
+  po_manual:'Manuell eingeben',
+  po_scanning:'Suche nach poweropti...',po_none:'Kein poweropti gefunden – bitte manuell eingeben.',
+  po_auto:'Gerät gefunden und ausgewählt.',po_select:'Mehrere Geräte – bitte auswählen:',
+  hint_api_key:'12 Hex-Zeichen (MAC-Adresse ohne Doppelpunkte)',
+  hint_hostname:'Erscheint als <hostname>.local im Netz',
+  adv_settings:'Erweiterte Einstellungen',
+  ap_title:'WLAN einrichten',ap_hint:'Wähle ein Netzwerk oder gib SSID manuell ein.',
+  btn_update:'Aktualisieren',btn_rescan:'Suche aktualisieren',btn_connect:'Verbinden',
+  btn_wifi_forget:'WLAN vergessen',btn_save:'Speichern',btn_restart:'Neustart',
+  reset_btn:'Zurücksetzen',reset_modal_title:'Gerät zurücksetzen',
+  reset_modal_body:'Alle benutzerspezifischen Daten werden gelöscht:\n– WLAN-Name und Passwort\n– poweropti IP und API-Key\n\nDas Gerät wechselt danach in den Einrichtungsmodus.',
+  reset_confirm_label:'Ja, zurücksetzen',reset_cancel:'Abbrechen',reset_progress:'Zurücksetzen...',
   reset_feedback_title:'Gerät wird zurückgesetzt',
-  reset_feedback_body:'Die power-bridge wechselt jetzt in den Einrichtungsmodus.<br><br>Das WLAN <strong style="color:#eee">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>Verbinde dich damit und öffne:<br><a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>',
-  forget_ap_info:'AP-Modus aktiv. Verbinde dich jetzt mit dem WLAN <strong>"power-bridge"</strong> und öffne <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
-  wifi_connecting:'Verbindet…',
+  reset_feedback_body:'Das Gerät wechselt jetzt in den Einrichtungsmodus.<br><br>Das WLAN <strong style="color:#e6edf3">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>Verbinde dich damit und öffne:<br><a href="http://192.168.4.1" style="color:#388bfd">http://192.168.4.1</a>',
+  update_available:'Update verfügbar',update_started:'Update wird installiert...',
+  update_done:'Neueste Version installiert',
+  forget_confirm:'WLAN-Zugangsdaten löschen? Das Gerät wechselt in den Einrichtungsmodus.',
+  forget_ap_info:'AP-Modus aktiv – verbinde mit "power-bridge" und öffne http://192.168.4.1',
+  connecting:'Verbinde...',wifi_ap:'AP-Modus',wifi_connecting:'Verbindet...',wifi_none:'Nicht verbunden',
+  po_ok:'Verbunden',po_err:'Nicht erreichbar',consumed:'Bezug',delivered:'Einspeisung',
   phase_equal:'Gleich (L1=L2=L3)',phase_l1:'Alles auf L1',
   restart_confirm:'Raspberry Pi wirklich neu starten?',
-  update_confirm:'Update jetzt durchführen? Die bridge wird kurz neu gestartet.',
-  consumed:'↓ Bezug',delivered:'↑ Einspeisung',
-  last_update:'Letzte Aktualisierung'
+  update_confirm:'Update jetzt installieren? Das Gerät startet kurz neu.',
+  scan_searching:'Suche...',scan_none:'Keine Netzwerke gefunden',scan_failed:'Suche fehlgeschlagen'
 },en:{
-  section_poweropti:'\u{1F4E1} poweropti',section_bridge:'\u{1F50C} power-bridge',
-  section_shelly:'Shelly Emulation',section_wifi:'\u{1F4F6} WiFi Configuration',
-  lbl_ip:'IP address',lbl_mac:'MAC address',lbl_status:'Status',
-  lbl_wifi_status:'WiFi',lbl_model:'Model',lbl_phase:'Phase distribution',
-  lbl_endpoints:'Endpoints',lbl_current_wifi:'Current WiFi',
-  lbl_scan_networks:'Networks nearby',
-  po_ok:'✓ Connected',po_err:'✗ Unreachable',
-  wifi_connected:'Connected',wifi_ap:'AP mode (setup)',wifi_no_ssid:'Not connected',
-  status_ok:'All systems OK',status_warn:'Connected – poweropti unreachable',
-  status_err:'AP mode – setup required',status_wait:'…',
-  btn_wifi_change:'\u{1F527} Change WiFi',
-  btn_wifi_forget:'\u{1F5D1} Forget WiFi',btn_scan:'\u{1F50D} Refresh scan',
-  btn_restart:'\u{1F504} Restart',btn_settings:'⚙ Settings',
-  btn_update:'⬆ Update now',update_available:'Update available',
-  update_started:'Update in progress…',
-  update_done:'✓ Latest version installed',
-  forget_confirm:'Really delete WiFi credentials? The power-bridge will switch to AP mode.',
-  reset_btn:'♻ Factory Reset',
-  reset_modal_title:'Confirm Factory Reset',
-  reset_modal_body:'All user-specific data will be deleted:\n• WiFi name and password\n• poweropti IP and API key\n\nThe device will restart in setup mode and can be handed to a new user.',
-  reset_confirm_label:'Yes, reset device',
-  reset_cancel:'Cancel',
-  reset_progress:'Resetting…',
+  status_ok:'All systems OK',status_warn:'poweropti unreachable',
+  status_err:'AP mode – setup required',status_wait:'...',
+  section_readings:'Readings',section_status:'Status',section_settings:'Settings',
+  section_poweropti:'poweropti',section_wifi_cfg:'WiFi',section_system:'System',
+  section_shelly:'Shelly Emulation',
+  lbl_last_reading:'Last reading',lbl_error:'Error',lbl_po_ip:'poweropti IP',
+  lbl_bridge_ip:'Bridge IP',lbl_version:'Version',lbl_model:'Model',lbl_phase:'Phase',
+  lbl_endpoints:'Endpoints',lbl_current_wifi:'Current',lbl_change_wifi:'Change WiFi',
+  lbl_ssid:'Network name (SSID)',lbl_password:'Password',lbl_po_key:'API key',
+  lbl_shelly_mac:'Shelly MAC',lbl_hostname:'Hostname',
+  po_manual:'Enter manually',
+  po_scanning:'Scanning for poweropti...',po_none:'No poweropti found – please enter manually.',
+  po_auto:'Device found and selected.',po_select:'Multiple devices – please select:',
+  hint_api_key:'12 hex characters (MAC address without colons)',
+  hint_hostname:'Appears as <hostname>.local on the network',
+  adv_settings:'Advanced settings',
+  ap_title:'WiFi setup',ap_hint:'Select a network or enter SSID manually.',
+  btn_update:'Update now',btn_rescan:'Refresh scan',btn_connect:'Connect',
+  btn_wifi_forget:'Forget WiFi',btn_save:'Save',btn_restart:'Restart',
+  reset_btn:'Factory reset',reset_modal_title:'Factory reset',
+  reset_modal_body:'All user-specific data will be deleted:\n– WiFi name and password\n– poweropti IP and API key\n\nThe device will switch to setup mode afterwards.',
+  reset_confirm_label:'Yes, reset',reset_cancel:'Cancel',reset_progress:'Resetting...',
   reset_feedback_title:'Device is being reset',
-  reset_feedback_body:'The power-bridge is switching to setup mode.<br><br>The WiFi network <strong style="color:#eee">"power-bridge"</strong> will appear in a few seconds.<br><br>Connect to it and open:<br><a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>',
-  forget_ap_info:'AP mode active. Connect to WiFi <strong>"power-bridge"</strong> and open <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
-  wifi_connecting:'Connecting…',
+  reset_feedback_body:'The device is switching to setup mode.<br><br>The WiFi network <strong style="color:#e6edf3">"power-bridge"</strong> will appear in a few seconds.<br><br>Connect to it and open:<br><a href="http://192.168.4.1" style="color:#388bfd">http://192.168.4.1</a>',
+  update_available:'Update available',update_started:'Installing update...',
+  update_done:'Latest version installed',
+  forget_confirm:'Delete WiFi credentials? The device will switch to setup mode.',
+  forget_ap_info:'AP mode active – connect to "power-bridge" and open http://192.168.4.1',
+  connecting:'Connecting...',wifi_ap:'AP mode',wifi_connecting:'Connecting...',wifi_none:'Not connected',
+  po_ok:'Connected',po_err:'Unreachable',consumed:'Consumption',delivered:'Feed-in',
   phase_equal:'Equal (L1=L2=L3)',phase_l1:'All on L1',
   restart_confirm:'Really reboot the Raspberry Pi?',
-  update_confirm:'Apply update now? The bridge will restart briefly.',
-  consumed:'↓ Consumption',delivered:'↑ Feed-in',
-  last_update:'Last update'
+  update_confirm:'Install update now? The device will restart briefly.',
+  scan_searching:'Scanning...',scan_none:'No networks found',scan_failed:'Scan failed'
 }};
 
 var lang=localStorage.getItem('pb-lang')||'de';
 function t(k){return(T[lang]&&T[lang][k])||T.de[k]||k;}
 function setLang(l){
-  lang=l;localStorage.setItem('pb-lang',l);
-  document.documentElement.lang=l;
+  lang=l;localStorage.setItem('pb-lang',l);document.documentElement.lang=l;
   document.getElementById('btn-de').classList.toggle('active',l==='de');
   document.getElementById('btn-en').classList.toggle('active',l==='en');
   applyLang();
@@ -305,168 +369,189 @@ function applyLang(){
   document.querySelectorAll('[data-i18n]').forEach(function(el){
     var k=el.getAttribute('data-i18n');var v=t(k);if(v)el.textContent=v;
   });
+  document.querySelectorAll('[data-i18n-o]').forEach(function(el){
+    var k=el.getAttribute('data-i18n-o');var v=t(k);if(v)el.textContent=v;
+  });
 }
 document.getElementById('btn-de').classList.toggle('active',lang==='de');
 document.getElementById('btn-en').classList.toggle('active',lang==='en');
 document.documentElement.lang=lang;
 
-function setWifiIcon(rssi,connected){
-  var bars=0;
-  if(connected){
-    if(rssi>-50)bars=4;else if(rssi>-65)bars=3;else if(rssi>-80)bars=2;else bars=1;
-  }
-  var arcs=['wi4','wi3','wi2'];var thr=[4,3,2];
-  for(var i=0;i<arcs.length;i++){
-    var el=document.getElementById(arcs[i]);
-    if(el)el.setAttribute('stroke',bars>=thr[i]?'#fff':'#444');
-  }
-  var dot=document.getElementById('wi1');
-  if(dot)dot.setAttribute('fill',bars>=1?'#fff':'#444');
-}
+// Pre-set phase select from Go template
+(function(){
+  var s=document.getElementById('phase-sel');
+  if(s)s.value='{{.Cfg.PhaseMode}}';
+})();
 
-function setTraffic(poOK,apMode){
-  var dot=document.getElementById('traffic-dot');
-  var txt=document.getElementById('traffic-text');
-  if(apMode){dot.style.background='#e94560';txt.textContent=t('status_err');}
-  else if(!poOK){dot.style.background='#fbbf24';txt.textContent=t('status_warn');}
-  else{dot.style.background='#6ee7b7';txt.textContent=t('status_ok');}
-}
-
-function fmtKwh(wh){
-  if(wh==null)return'';
-  return(wh/1000).toFixed(3)+' kWh';
-}
-function fmtWattSimple(w){
-  return w>=0?w.toFixed(1)+' W ↓':(-w).toFixed(1)+' W ↑';
-}
-function ageStr(iso){
+function fmtWh(wh){return(wh/1000).toFixed(3)+' kWh';}
+function fmtAge(iso){
   if(!iso)return'–';
-  var d=Math.round((Date.now()-new Date(iso).getTime())/1000);
-  if(d<0)d=0;if(d<60)return d+'s ago';return Math.round(d/60)+'m ago';
+  var s=Math.round((Date.now()-new Date(iso).getTime())/1000);
+  if(s<0)s=0;if(s<60)return s+'s';return Math.round(s/60)+'min';
 }
 function phaseLabel(m){return m==='l1'?t('phase_l1'):t('phase_equal');}
 
-// OTA update tracking
-var latestVersion='';
-var updateApplied=false;
+// OTA tracking
+var latestVersion='';var updateApplied=false;
+var apScanDone=false;var lastStatus=null;
 
-var scanAutoTriggered=false;
 (function poll(){
   fetch('/api/status').then(function(r){return r.json();}).then(function(d){
-    document.getElementById('po-ip').textContent=d.poweropti_ip||'–';
-    document.getElementById('po-mac').textContent=d.poweropti_mac||'–';
-    var badge=document.getElementById('po-badge');
-    if(d.poweropti_ok){badge.textContent=t('po_ok');badge.className='badge badge-ok';}
-    else{badge.textContent=t('po_err');badge.className='badge badge-err';}
-    var errEl=document.getElementById('po-error');
-    if(d.last_error){errEl.textContent='⚠ '+d.last_error.slice(0,200);errEl.style.display='block';}
-    else errEl.style.display='none';
-    var wEl=document.getElementById('watt-display');
-    wEl.textContent=d.poweropti_ok?fmtWattSimple(d.watt):'–';
-    wEl.style.color=d.watt<0?'#6ee7b7':'#e94560';
-    document.getElementById('consumed-display').textContent=d.poweropti_ok?t('consumed')+': '+fmtKwh(d.consumed_wh):'';
-    document.getElementById('delivered-display').textContent=d.poweropti_ok?t('delivered')+': '+fmtKwh(d.delivered_wh):'';
-    document.getElementById('po-age').textContent=d.last_read_at?t('last_update')+': '+ageStr(d.last_read_at):'';
+    lastStatus=d;
+
+    // Header status dot
+    var dot=document.getElementById('sdot');var stxt=document.getElementById('stxt');
+    if(d.is_ap_mode){dot.className='sdot warn';stxt.textContent=t('status_err');}
+    else if(!d.poweropti_ok){dot.className='sdot warn';stxt.textContent=t('status_warn');}
+    else{dot.className='sdot ok';stxt.textContent=t('status_ok');}
+
+    // AP mode box
+    document.getElementById('ap-box').style.display=d.is_ap_mode?'block':'none';
+    if(d.is_ap_mode&&!apScanDone){apScanDone=true;apScan();}
+
+    // Readings section
+    var secR=document.getElementById('sec-readings');
+    secR.style.display=(d.configured&&d.poweropti_ok)?'block':'none';
+    if(d.poweropti_ok){
+      var w=d.watt;
+      var we=document.getElementById('watt-display');
+      we.textContent=(w<0?(-w).toFixed(1)+' W':w.toFixed(1)+' W');
+      we.style.color=w<0?'#3fb950':'#e6edf3';
+      document.getElementById('consumed-display').textContent=t('consumed')+': '+fmtWh(d.consumed_wh);
+      document.getElementById('delivered-display').textContent=t('delivered')+': '+fmtWh(d.delivered_wh);
+      document.getElementById('reading-age').textContent=fmtAge(d.last_read_at);
+    }
+
+    // poweropti status
+    var pdot=document.getElementById('po-dot');var ptxt=document.getElementById('po-txt');
+    if(d.poweropti_ok){pdot.className='sdot-row ok';ptxt.textContent=t('po_ok');}
+    else{pdot.className='sdot-row err';ptxt.textContent=t('po_err');}
+    var errRow=document.getElementById('err-row');
+    if(d.last_error){
+      document.getElementById('err-txt').textContent=d.last_error.slice(0,120);
+      errRow.style.display='flex';
+    } else{errRow.style.display='none';}
+    document.getElementById('po-ip-disp').textContent=d.poweropti_ip||'–';
+
+    // WLAN status
+    var wEl=document.getElementById('wifi-txt');
+    if(d.is_ap_mode){wEl.textContent=t('wifi_ap');}
+    else if(d.wifi_connected_ssid){wEl.textContent=d.wifi_connected_ssid;}
+    else if(d.wifi_ssid){wEl.textContent=t('wifi_connecting');}
+    else{wEl.textContent=t('wifi_none');}
+
     document.getElementById('br-ip').textContent=d.bridge_ip||'–';
-    document.getElementById('br-mac').textContent=d.bridge_mac||'–';
-    var connectedSSID=d.wifi_connected_ssid||'';
-    var connected=!d.is_ap_mode&&!!connectedSSID;
-    setWifiIcon(d.wifi_rssi,connected);
-    var wLabel=document.getElementById('wifi-label');
-    if(d.is_ap_mode)wLabel.textContent=t('wifi_ap');
-    else if(connectedSSID)wLabel.textContent=connectedSSID;
-    else if(d.wifi_ssid)wLabel.textContent=t('wifi_connecting');
-    else wLabel.textContent=t('wifi_no_ssid');
     document.getElementById('br-rssi').textContent=d.wifi_rssi+' dBm';
+
+    // Settings: WiFi current
+    var wc=document.getElementById('wifi-current');
+    if(d.is_ap_mode){wc.textContent=t('wifi_ap');}
+    else if(d.wifi_connected_ssid){wc.textContent=d.wifi_connected_ssid;}
+    else{wc.textContent=t('wifi_none');}
+
+    // Auto-open settings when not configured
+    if(!d.configured){document.getElementById('det-settings').open=true;}
+
+    // System section
+    document.getElementById('br-mac').textContent=d.bridge_mac||'–';
     document.getElementById('sh-id').textContent=d.shelly_id||'–';
     document.getElementById('sh-mac').textContent=d.shelly_mac||'–';
     document.getElementById('sh-model').textContent=d.shelly_model||'–';
     document.getElementById('sh-phase').textContent=phaseLabel(d.phase_mode);
-    var wifiCurrent=document.getElementById('wifi-current');
-    if(d.is_ap_mode){wifiCurrent.textContent=t('wifi_ap');}
-    else if(connectedSSID){
-      wifiCurrent.textContent=connectedSSID;
-      wifiCurrent.style.color='';
-    } else if(d.wifi_ssid){
-      wifiCurrent.textContent=t('wifi_connecting')+': '+d.wifi_ssid;
-      wifiCurrent.style.color='#fcd34d';
-    } else {
-      wifiCurrent.textContent=t('wifi_no_ssid');
-      wifiCurrent.style.color='';
-    }
-    if(d.is_ap_mode&&!scanAutoTriggered){
-      scanAutoTriggered=true;
-      document.getElementById('scan-details').open=true;
-      scanWifiStatus();
-    }
-    setTraffic(d.poweropti_ok,d.is_ap_mode);
+
+    // Version + OTA completion check
     if(d.version){
       document.getElementById('ver-display').textContent='v'+d.version;
-      // #2: Hide update banner when installed version matches the available update
-      if(updateApplied && latestVersion && d.version===latestVersion){
+      if(updateApplied&&latestVersion&&d.version===latestVersion){
         updateApplied=false;
         document.getElementById('update-banner').style.display='none';
-        var msg=document.getElementById('action-msg');
-        msg.style.color='#6ee7b7';
-        msg.textContent=t('update_done')+' – v'+d.version;
-        setTimeout(function(){msg.textContent='';msg.style.color='#aaa';},4000);
+        var am=document.getElementById('action-msg');
+        am.textContent=t('update_done')+' – v'+d.version;
+        setTimeout(function(){am.textContent='';},4000);
       }
     }
+    // poweropti dev dots
+    updateDevDots(d);
     applyLang();
   }).catch(function(){});
   setTimeout(poll,3000);
 })();
 
-function scanWifiStatus(){
-  var list=document.getElementById('ssid-status-list');
-  list.innerHTML='<li style="color:#6b7280;padding:.2rem .4rem;font-size:.8rem">\u{1F50D} Suche…</li>';
-  fetch('/setup/scan').then(function(r){return r.json();}).then(function(d){
-    list.innerHTML='';
-    var ssids=d.ssids||[];
-    if(!ssids.length){list.innerHTML='<li style="color:#6b7280;padding:.2rem .4rem;font-size:.8rem">Keine Netzwerke gefunden</li>';return;}
-    ssids.forEach(function(s){
-      var li=document.createElement('li');
-      li.textContent=s;
-      li.style.cssText='padding:.3rem .5rem;cursor:pointer;border-radius:.3rem;font-size:.85rem;color:#eee';
-      li.addEventListener('mouseover',function(){li.style.background='#1a4a80';});
-      li.addEventListener('mouseout',function(){li.style.background='';});
-      li.addEventListener('click',function(){window.location.href='/setup?ssid='+encodeURIComponent(s);});
-      list.appendChild(li);
-    });
-  }).catch(function(){list.innerHTML='<li style="color:#f87171;padding:.2rem .4rem;font-size:.8rem">Scan fehlgeschlagen</li>';});
-}
+// poweropti device scan (runs on settings open)
+var selPoIP='{{.Cfg.PoweroptiIP}}';var selPoKey='{{.Cfg.PoweroptiAPIKey}}';
+window.addEventListener('load',function(){
+  var cfgIP=document.getElementById('po-ip-inp').value;
+  if(cfgIP){
+    // Already configured: auto-open manual section, don't scan
+    document.getElementById('po-manual-det').open=true;
+    return;
+  }
+  var state=document.getElementById('po-scan-state');
+  state.textContent=t('po_scanning');
+  fetch('/setup/scan-poweropti').then(function(r){return r.json();}).then(function(d){
+    renderDevList(d.devices||[]);
+  }).catch(function(){
+    state.textContent='';
+    document.getElementById('po-manual-det').open=true;
+  });
+});
 
-function wifiForget(){
-  if(!confirm(t('forget_confirm')))return;
-  var btn=document.querySelector('[onclick="wifiForget()"]');
-  if(btn)btn.disabled=true;
-  fetch('/api/wifi/forget',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
-    var info=document.getElementById('forget-info');
-    if(d.status==='ap_mode_enabled'||d.status==='ok'){
-      info.innerHTML=t('forget_ap_info');
-      info.style.display='block';
-    } else if(d.error){
-      info.style.background='#4a0e0e';info.style.color='#f87171';
-      info.textContent='Fehler: '+d.error;
-      info.style.display='block';
-      if(btn)btn.disabled=false;
-    }
-  }).catch(function(e){
-    var info=document.getElementById('forget-info');
-    info.style.background='#4a0e0e';info.style.color='#f87171';
-    info.textContent='Anfrage fehlgeschlagen: '+e;
-    info.style.display='block';
-    if(btn)btn.disabled=false;
+function renderDevList(devices){
+  var state=document.getElementById('po-scan-state');
+  var list=document.getElementById('po-dev-list');
+  list.innerHTML='';
+  if(!devices.length){
+    state.textContent=t('po_none');
+    document.getElementById('po-manual-det').open=true;
+    return;
+  }
+  devices.forEach(function(dev){
+    var key=dev.mac?dev.mac.replace(/:/g,'').toLowerCase():'';
+    var li=document.createElement('li');
+    li.className='dev-item';
+    li.setAttribute('data-ip',dev.ip);
+    li.innerHTML='<span class="dev-dot" id="dot-'+escAttr(dev.ip)+'"></span>'+
+      '<span class="dev-ip">'+escHtml(dev.ip)+'</span>'+
+      '<span class="dev-watt" id="watt-'+escAttr(dev.ip)+'"></span>';
+    li.onclick=function(){selectDev(dev.ip,key);};
+    list.appendChild(li);
+  });
+  list.style.display='block';
+  if(devices.length===1){
+    var k=devices[0].mac?devices[0].mac.replace(/:/g,'').toLowerCase():'';
+    selectDev(devices[0].ip,k);
+    state.textContent=t('po_auto');
+  } else {
+    state.textContent=t('po_select');
+    if(selPoIP){selectDev(selPoIP,selPoKey);}
+  }
+}
+function selectDev(ip,key){
+  selPoIP=ip;selPoKey=key;
+  document.getElementById('po-ip-inp').value=ip;
+  document.getElementById('po-key-inp').value=key;
+  document.querySelectorAll('#po-dev-list .dev-item').forEach(function(el){
+    el.classList.toggle('sel',el.getAttribute('data-ip')===ip);
+  });
+}
+function updateDevDots(d){
+  if(!lastStatus)return;
+  document.querySelectorAll('#po-dev-list .dev-item').forEach(function(el){
+    var ip=el.getAttribute('data-ip');
+    var dot=document.getElementById('dot-'+ip);
+    var watt=document.getElementById('watt-'+ip);
+    if(!dot)return;
+    if(ip===d.poweropti_ip&&d.poweropti_ok){
+      dot.className='dev-dot ok';
+      if(watt){watt.textContent=d.watt<0?(-d.watt).toFixed(1)+' W':d.watt.toFixed(1)+' W';}
+    } else if(ip===d.poweropti_ip){
+      dot.className='dev-dot warn';
+      if(watt){watt.textContent='';}
+    } else{dot.className='dev-dot';if(watt){watt.textContent='';}}
   });
 }
 
-function restartService(){
-  if(!confirm(t('restart_confirm')))return;
-  fetch('/api/restart',{method:'POST'}).then(function(){
-    document.getElementById('action-msg').textContent='Neustart angefordert…';
-  });
-}
-
+// OTA
 function checkUpdate(){
   fetch('/api/update/check').then(function(r){return r.json();}).then(function(d){
     if(!d.update_available)return;
@@ -477,57 +562,131 @@ function checkUpdate(){
 }
 function applyUpdate(){
   if(!confirm(t('update_confirm')))return;
-  var btn=document.getElementById('btn-update');btn.disabled=true;
+  document.getElementById('btn-update').disabled=true;
   updateApplied=true;
   fetch('/api/update/apply',{method:'POST'}).then(function(){
     document.getElementById('update-info').textContent=t('update_started');
   });
 }
-function dismissUpdate(){
-  document.getElementById('update-banner').style.display='none';
-  updateApplied=false;
+function dismissUpdate(){document.getElementById('update-banner').style.display='none';updateApplied=false;}
+
+// WiFi forget
+function wifiForget(){
+  if(!confirm(t('forget_confirm')))return;
+  var msg=document.getElementById('forget-msg');
+  fetch('/api/wifi/forget',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+    if(d.status==='ap_mode_enabled'||d.status==='ok'){
+      msg.style.color='#8b949e';msg.textContent=t('forget_ap_info');msg.style.display='block';
+    }else if(d.error){msg.style.color='#f85149';msg.textContent='Fehler: '+d.error;msg.style.display='block';}
+  }).catch(function(e){msg.style.color='#f85149';msg.textContent=''+e;msg.style.display='block';});
 }
 
+// WiFi scan (settings – change network)
+function wifiScan(){
+  var state=document.getElementById('wifi-scan-state');
+  var list=document.getElementById('wifi-scan-list');
+  state.textContent=t('scan_searching');list.style.display='none';list.innerHTML='';
+  fetch('/setup/scan').then(function(r){return r.json();}).then(function(d){
+    var ssids=d.ssids||[];
+    if(!ssids.length){state.textContent=t('scan_none');return;}
+    state.textContent='';
+    ssids.forEach(function(s){
+      var li=document.createElement('li');li.className='scan-item';li.textContent=s;
+      li.onclick=function(){
+        document.querySelectorAll('#wifi-scan-list .scan-item').forEach(function(x){x.classList.remove('sel');});
+        li.classList.add('sel');
+        document.getElementById('f-wifi-ssid').value=s;
+        document.getElementById('f-wifi-pw').value='';
+        document.getElementById('wifi-pw-sec').style.display='block';
+        document.getElementById('wifi-new-pw').focus();
+      };
+      list.appendChild(li);
+    });
+    list.style.display='block';
+  }).catch(function(){state.textContent=t('scan_failed');});
+}
+document.getElementById('wifi-new-pw').addEventListener('input',function(){
+  document.getElementById('f-wifi-pw').value=this.value;
+});
+
+// AP mode WiFi scan + connect
+function apScan(){
+  var state=document.getElementById('ap-scan-state');
+  var list=document.getElementById('ap-ssid-list');
+  state.textContent=t('scan_searching');list.style.display='none';list.innerHTML='';
+  fetch('/setup/scan').then(function(r){return r.json();}).then(function(d){
+    var ssids=d.ssids||[];
+    if(!ssids.length){state.textContent=t('scan_none');return;}
+    state.textContent='';
+    ssids.forEach(function(s){
+      var li=document.createElement('li');li.className='scan-item';li.textContent=s;
+      li.onclick=function(){
+        document.querySelectorAll('#ap-ssid-list .scan-item').forEach(function(x){x.classList.remove('sel');});
+        li.classList.add('sel');document.getElementById('ap-ssid').value=s;
+        document.getElementById('ap-pw').focus();
+      };
+      list.appendChild(li);
+    });
+    list.style.display='block';
+  }).catch(function(){state.textContent=t('scan_failed');});
+}
+function apConnect(){
+  var ssid=document.getElementById('ap-ssid').value.trim();
+  var pw=document.getElementById('ap-pw').value;
+  var msg=document.getElementById('ap-msg');
+  if(!ssid){msg.textContent='Bitte WLAN-Namen eingeben.';return;}
+  msg.textContent=t('connecting');
+  fetch('/wifi/connect',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(pw)})
+  .then(function(r){return r.json();}).then(function(d){
+    if(d.error){msg.style.color='#f85149';msg.textContent=d.error;}
+    else{msg.style.color='#8b949e';msg.textContent=t('connecting');}
+  }).catch(function(e){msg.style.color='#f85149';msg.textContent=''+e;});
+}
+
+// Restart
+function doRestart(){
+  if(!confirm(t('restart_confirm')))return;
+  fetch('/api/restart',{method:'POST'}).then(function(){
+    document.getElementById('action-msg').textContent='Neustart angefordert...';
+  });
+}
+
+// Factory reset
 function openResetModal(){
-  document.getElementById('reset-modal-title').textContent=t('reset_modal_title');
-  document.getElementById('reset-modal-body').textContent=t('reset_modal_body');
-  document.getElementById('reset-cancel-btn').textContent=t('reset_cancel');
-  document.getElementById('reset-confirm-btn').textContent=t('reset_confirm_label');
-  document.getElementById('reset-confirm-btn').disabled=false;
-  document.getElementById('reset-cancel-btn').disabled=false;
+  document.getElementById('reset-title').textContent=t('reset_modal_title');
+  document.getElementById('reset-body').textContent=t('reset_modal_body');
+  document.getElementById('reset-cancel').textContent=t('reset_cancel');
+  document.getElementById('reset-confirm').textContent=t('reset_confirm_label');
+  document.getElementById('reset-confirm').disabled=false;
+  document.getElementById('reset-cancel').disabled=false;
   document.getElementById('reset-msg').style.display='none';
   document.getElementById('reset-modal').style.display='flex';
 }
 function closeResetModal(){document.getElementById('reset-modal').style.display='none';}
 function closeResetIfBg(e){if(e.target===document.getElementById('reset-modal'))closeResetModal();}
 function doFactoryReset(){
-  var btn=document.getElementById('reset-confirm-btn');
-  var cancelBtn=document.getElementById('reset-cancel-btn');
-  btn.disabled=true;cancelBtn.disabled=true;
-  btn.textContent=t('reset_progress');
+  var btn=document.getElementById('reset-confirm');var cancel=document.getElementById('reset-cancel');
+  btn.disabled=true;cancel.disabled=true;btn.textContent=t('reset_progress');
   fetch('/api/factory-reset',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
     if(d.error){
-      var msg=document.getElementById('reset-msg');
-      msg.style.background='#4a0e0e';msg.style.color='#f87171';
+      var msg=document.getElementById('reset-msg');msg.style.color='#f85149';
       msg.textContent='Fehler: '+d.error;msg.style.display='block';
-      btn.disabled=false;cancelBtn.disabled=false;
-      btn.textContent=t('reset_confirm_label');
-    } else {
-      // Show full-screen feedback overlay
+      btn.disabled=false;cancel.disabled=false;btn.textContent=t('reset_confirm_label');
+    } else{
       closeResetModal();
-      var overlay=document.getElementById('reset-feedback-overlay');
-      var body=document.getElementById('reset-feedback-body');
-      body.innerHTML=t('reset_feedback_body');
-      overlay.style.display='flex';
+      document.getElementById('reset-done-body').innerHTML=t('reset_feedback_body');
+      document.getElementById('reset-done-ov').style.display='flex';
     }
   }).catch(function(e){
-    var msg=document.getElementById('reset-msg');
-    msg.style.background='#4a0e0e';msg.style.color='#f87171';
-    msg.textContent='Anfrage fehlgeschlagen: '+e;msg.style.display='block';
-    btn.disabled=false;cancelBtn.disabled=false;
-    btn.textContent=t('reset_confirm_label');
+    var msg=document.getElementById('reset-msg');msg.style.color='#f85149';
+    msg.textContent='Fehler: '+e;msg.style.display='block';
+    btn.disabled=false;cancel.disabled=false;btn.textContent=t('reset_confirm_label');
   });
 }
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escAttr(s){return escHtml(s).replace(/'/g,'&#39;');}
 
 applyLang();
 checkUpdate();

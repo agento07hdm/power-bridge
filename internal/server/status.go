@@ -29,6 +29,9 @@ type statusPageData struct {
 	PoweroptiAge string
 	// Version is the power-bridge release version (e.g. "v0.1.3").
 	Version string
+	// Cfg exposes the full runtime config to the template so the merged
+	// settings form can be pre-filled without a separate /setup round-trip.
+	Cfg *config.Config
 }
 
 func (s *Server) statusPage(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +49,7 @@ func (s *Server) buildStatusPageData(r *http.Request) statusPageData {
 		Logs:        s.logBuffer.lines(),
 		SetupDone:   r.URL.Query().Get("setup") == "done",
 		Version:     Version,
+		Cfg:         s.cfg,
 	}
 	if s.poller != nil {
 		rd := s.poller.Latest()

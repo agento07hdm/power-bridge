@@ -73,10 +73,8 @@ type setupPageData struct {
 }
 
 func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
-	data := setupPageData{Cfg: s.cfg}
-	if err := s.tmplSetup.Execute(w, data); err != nil {
-		log.Printf("setup template error: %v", err)
-	}
+	// Setup is now integrated into the main status page.
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // --------------------------------------------------------------------------
