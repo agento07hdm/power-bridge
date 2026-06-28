@@ -52,6 +52,7 @@ input:focus{outline:none;border-color:#388bfd}
 .status-connecting{background:#0d2136;border:1px solid #1d4ed8;color:#93c5fd}
 .status-success{background:#0a1f10;border:1px solid #238636;color:#3fb950}
 .status-error{background:#1a0a0a;border:1px solid #8b1a1a;color:#f85149}
+.open-link{display:inline-block;background:#1f6feb;color:#fff;padding:.45rem .9rem;border-radius:.3rem;text-decoration:none;font-size:.85rem;font-weight:500;margin:.55rem 0 .35rem}
 </style>
 </head>
 <body>
@@ -183,7 +184,10 @@ function doConnect(ssid,pass){
   }).then(function(r){return r.json();})
   .then(function(d){
     if(d.error){setStatus('status-error',escHtml(d.error));return;}
-    setStatus('status-connecting','Verbindung wird hergestellt... Bitte warte ca. 30–45 Sekunden.');
+    setStatus('status-connecting',
+      'Verbindung gespeichert. Die Bridge wählt sich jetzt ins WLAN ein.<br><br>'+
+      '<a href="http://power-bridge.local" target="_blank" class="open-link">power-bridge.local öffnen ›</a><br>'+
+      '<span style="font-size:.76rem;color:#6e7681">Tippe auf den Link &ndash; die Seite lädt automatisch sobald die Bridge verbunden ist.</span>');
     pollStart=Date.now();fetchFailures=0;lastStatus=null;
     pollTimer=setInterval(pollStatus,2500);
   })

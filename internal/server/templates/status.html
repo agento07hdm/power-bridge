@@ -101,9 +101,30 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 /* Done overlay */
 #done-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem}
 #done-box{background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:1.2rem .9rem;width:100%;max-width:400px;text-align:center}
+
+/* Connecting overlay */
+#conn-ov{position:fixed;inset:0;background:#0d1117;z-index:150;display:none;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center}
+#conn-ov.show{display:flex}
+.conn-spin{width:36px;height:36px;border:3px solid #21262d;border-top-color:#388bfd;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:1.25rem;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+#conn-msg{color:#8b949e;font-size:.88rem;line-height:1.65;max-width:300px}
+#conn-help{display:none;margin-top:1.5rem;font-size:.8rem;color:#484f58;line-height:1.75;max-width:300px;border-top:1px solid #21262d;padding-top:1.25rem}
 </style>
 </head>
 <body>
+
+<!-- Connecting overlay -->
+<div id="conn-ov">
+  <div class="conn-spin"></div>
+  <div id="conn-msg">power-bridge verbindet sich mit dem WLAN&hellip;</div>
+  <div id="conn-help">
+    <p style="color:#6e7681;margin-bottom:.6rem">Noch keine Verbindung?</p>
+    <p>Falls das <b style="color:#8b949e">power-bridge&nbsp;WLAN</b> noch sichtbar ist:<br>
+    Verbinde dein Ger&auml;t damit und &ouml;ffne <b style="color:#8b949e">192.168.4.1</b> erneut.</p>
+    <p style="margin-top:.75rem">Falls kein power-bridge&nbsp;WLAN mehr sichtbar ist und diese Seite leer bleibt:<br>
+    Pi neu starten &ndash; Stecker ziehen und wieder einstecken.</p>
+  </div>
+</div>
 
 <!-- AP Mode Banner -->
 <div id="ap-banner">
@@ -455,9 +476,38 @@ function poll() {
 }
 
 // ================================================================
+// Connecting overlay
+// ================================================================
+var _ovDismissed = false;
+var _ovShowTimer  = null;
+var _ovHelpTimer  = null;
+
+function initConnOverlay() {
+  // Show overlay only if API does not respond within 2 s
+  _ovShowTimer = setTimeout(function() {
+    if (!_ovDismissed) {
+      el('conn-ov').classList.add('show');
+      // Show troubleshooting after another 30 s
+      _ovHelpTimer = setTimeout(function() {
+        el('conn-help').style.display = '';
+      }, 30000);
+    }
+  }, 2000);
+}
+
+function dismissConnOverlay() {
+  if (_ovDismissed) return;
+  _ovDismissed = true;
+  if (_ovShowTimer)  clearTimeout(_ovShowTimer);
+  if (_ovHelpTimer)  clearTimeout(_ovHelpTimer);
+  el('conn-ov').classList.remove('show');
+}
+
+// ================================================================
 // Render
 // ================================================================
 function render(d) {
+  dismissConnOverlay();
   var ap = !!d.is_ap_mode;
   document.body.classList.toggle('ap-mode', ap);
   el('ap-banner').style.display = ap ? 'block' : 'none';
@@ -955,6 +1005,7 @@ function fmtDatetime(iso) {
 // ================================================================
 (function(){
   var sp = el('sel-phase-mode'); if (sp) sp.value = '{{.Cfg.PhaseMode}}';
+  initConnOverlay();
   poll();
   checkUpdate();
 })();
