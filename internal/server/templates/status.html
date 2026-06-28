@@ -73,9 +73,9 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 .scan-item-sub{display:block;font-size:.67rem;color:#6e7681;font-family:ui-monospace,monospace}
 .btn-rescan{background:none;border:1px solid #30363d;color:#8b949e;font-size:.7rem;padding:.18rem .45rem;border-radius:.25rem;cursor:pointer;margin-bottom:.25rem;transition:border-color .15s}
 .btn-rescan:hover{border-color:#388bfd;color:#388bfd}
-.po-status{font-size:.68rem;color:#484f58;margin-top:.05rem;display:block;font-family:system-ui,sans-serif;font-weight:400;white-space:nowrap}
 @keyframes dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
 .rdot.pulse{animation:dot-pulse 1.1s ease-in-out infinite}
+.rdot.clickable{cursor:pointer}
 
 /* Endpoints */
 .ep-list{list-style:none;margin:.15rem 0}
@@ -203,10 +203,7 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 <div class="row-wrap" id="wrap-po-ip">
   <div class="row-main clickable" onclick="toggleRow('po-ip')">
     <span class="row-lbl">poweropti IP</span>
-    <span class="row-val row-mono" id="val-po-ip" style="display:flex;flex-direction:column;align-items:flex-end">
-      <span id="val-po-ip-addr">&#x2013;</span>
-      <span class="po-status" id="val-po-status"></span>
-    </span>
+    <span class="row-val row-mono" id="val-po-ip-addr">&#x2013;</span>
     <span class="rdot" id="dot-po-ip"></span>
     <span class="row-arrow" id="arrow-po-ip">&#x203a;</span>
   </div>
@@ -624,19 +621,42 @@ function render(d) {
 
 function renderPoIpDot(d) {
   var e = el('dot-po-ip');
-  var s = el('val-po-status');
-  function st(txt) { if (s) s.textContent = txt; }
-  if (d.poweropti_ok)          { setDot(e,'green');  st('Verbunden');        return; }
-  if (!d.poweropti_ip)         { setDot(e,'grey');   st('');                  return; }
-  if (!d.last_error)           { setDot(e,'grey');   st('Verbinde…');   return; }
-  if (is401(d.last_error))     { setDot(e,'yellow'); st('API-Key falsch');   return; }
-  if (isNetErr(d.last_error))  { setDot(e,'red');    st('Nicht erreichbar'); return; }
-  setDot(e,'yellow'); st('Fehler');
+  // Pulse nur während Scan – sonst entfernen
+  if (!poScanRunning) e.classList.remove('pulse');
+
+  function setErr(msg) {
+    setDot(e,'red');
+    e.classList.add('clickable');
+    e.onclick = function(ev) {
+      ev.stopPropagation();
+      var errEl = el('err-po-ip');
+      if (errEl.style.display === 'none' || errEl.style.display === '') {
+        showErr(errEl, msg);
+      } else {
+        hideErr(errEl);
+      }
+    };
+  }
+  function clearErr() {
+    e.classList.remove('clickable');
+    e.onclick = null;
+    hideErr(el('err-po-ip'));
+  }
+
+  if (d.poweropti_ok)         { setDot(e,'green');  clearErr(); return; }
+  if (!d.poweropti_ip)        { setDot(e,'grey');   clearErr(); return; }
+  if (!d.last_error)          {
+    // IP konfiguriert, noch kein Fehler → verbindet sich → gelb pulsierend
+    setDot(e,'yellow'); e.classList.add('pulse'); clearErr(); return;
+  }
+  if (is401(d.last_error))    { setErr('API-Key falsch oder nicht gesetzt.'); return; }
+  if (isNetErr(d.last_error)) { setErr(xlat(d.last_error)); return; }
+  setErr(xlat(d.last_error));
 }
 function renderPoIpErr(d) {
-  var e = el('err-po-ip');
-  if (d.last_error && isNetErr(d.last_error)) showErr(e, xlat(d.last_error));
-  else hideErr(e);
+  // Fehlermeldung wird jetzt durch Dot-Klick gesteuert, nicht mehr automatisch
+  // Nur ausblenden wenn kein Fehler mehr vorhanden
+  if (!d.last_error) hideErr(el('err-po-ip'));
 }
 function renderApiKeyDot(d) {
   var e = el('dot-api-key');
