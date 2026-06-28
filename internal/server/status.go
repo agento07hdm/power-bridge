@@ -100,6 +100,8 @@ type apiStatusResponse struct {
 	PoweroptiOK        bool    `json:"poweropti_ok"`
 	Watt               float64 `json:"watt"`
 	ConsumedWh         float64 `json:"consumed_wh"`
+	HTConsumedWh       float64 `json:"ht_consumed_wh"`
+	NTConsumedWh       float64 `json:"nt_consumed_wh"`
 	DeliveredWh        float64 `json:"delivered_wh"`
 	Errors             int     `json:"errors"`
 	LastError          string  `json:"last_error"`
@@ -158,6 +160,8 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 		resp.PoweroptiOK = rd.Valid
 		resp.Watt = rd.Watt
 		resp.ConsumedWh = rd.ConsumedWh
+		resp.HTConsumedWh = rd.HTConsumedWh
+		resp.NTConsumedWh = rd.NTConsumedWh
 		resp.DeliveredWh = rd.DeliveredWh
 		resp.Errors = s.poller.ConsecutiveErrors()
 		resp.LastError = s.poller.LastError()

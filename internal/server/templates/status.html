@@ -44,6 +44,8 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 .row-mono{font-family:ui-monospace,'Cascadia Code',monospace;font-size:.72rem}
 .row-arrow{color:#484f58;font-size:1rem;font-weight:700;flex-shrink:0;width:14px;text-align:center;transition:transform .15s}
 .row-arrow.open{transform:rotate(45deg)}
+/* invisible placeholders to keep all rows aligned */
+.row-ph{visibility:hidden}
 
 /* Error sub-row */
 .row-err{display:none;padding:.22rem .8rem .3rem 8.9rem;font-size:.72rem;color:#f85149;line-height:1.5;background:#0d1117}
@@ -116,6 +118,59 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <span class="hdr-watt" id="hdr-watt" style="display:none"></span>
 </div>
 
+<!-- ── Zählerdaten (nur sichtbar wenn poweropti_ok) ── -->
+<div id="meter-section" style="display:none">
+  <div class="row-wrap">
+    <div class="row-main">
+      <span class="row-lbl">Leistung</span>
+      <span class="row-val" id="val-meter-watt">&#x2013;</span>
+      <span class="rdot row-ph"></span>
+      <span class="row-arrow row-ph">&#x203a;</span>
+    </div>
+  </div>
+  <div class="row-wrap">
+    <div class="row-main">
+      <span class="row-lbl">Bezugz&auml;hlerstand</span>
+      <span class="row-val" id="val-meter-consumed">&#x2013;</span>
+      <span class="rdot row-ph"></span>
+      <span class="row-arrow row-ph">&#x203a;</span>
+    </div>
+  </div>
+  <div class="row-wrap" id="wrap-meter-ht">
+    <div class="row-main">
+      <span class="row-lbl">HT-Z&auml;hlerstand</span>
+      <span class="row-val" id="val-meter-ht">&#x2013;</span>
+      <span class="rdot row-ph"></span>
+      <span class="row-arrow row-ph">&#x203a;</span>
+    </div>
+  </div>
+  <div class="row-wrap" id="wrap-meter-nt">
+    <div class="row-main">
+      <span class="row-lbl">NT-Z&auml;hlerstand</span>
+      <span class="row-val" id="val-meter-nt">&#x2013;</span>
+      <span class="rdot row-ph"></span>
+      <span class="row-arrow row-ph">&#x203a;</span>
+    </div>
+  </div>
+  <div class="row-wrap">
+    <div class="row-main">
+      <span class="row-lbl">Einspeisez&auml;hlerstand</span>
+      <span class="row-val" id="val-meter-delivered">&#x2013;</span>
+      <span class="rdot row-ph"></span>
+      <span class="row-arrow row-ph">&#x203a;</span>
+    </div>
+  </div>
+  <div class="row-wrap">
+    <div class="row-main">
+      <span class="row-lbl">Zuletzt aktualisiert</span>
+      <span class="row-val" id="val-meter-ts">&#x2013;</span>
+      <span class="rdot row-ph"></span>
+      <span class="row-arrow row-ph">&#x203a;</span>
+    </div>
+  </div>
+  <div class="sep-gap"></div><div class="sep"></div><div class="sep-gap"></div>
+</div>
+
 <!-- ── poweropti IP ── -->
 <div class="row-wrap" id="wrap-po-ip">
   <div class="row-main clickable" onclick="toggleRow('po-ip')">
@@ -166,6 +221,7 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
     <span class="row-lbl">power-bridge IP</span>
     <span class="row-val row-mono" id="val-br-ip">&#x2013;</span>
     <span class="rdot" id="dot-br-ip"></span>
+    <span class="row-arrow row-ph">&#x203a;</span>
   </div>
 </div>
 
@@ -197,6 +253,8 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-main">
     <span class="row-lbl">power-bridge MAC</span>
     <span class="row-val row-mono" id="val-br-mac">&#x2013;</span>
+    <span class="rdot row-ph"></span>
+    <span class="row-arrow row-ph">&#x203a;</span>
   </div>
 </div>
 
@@ -226,6 +284,7 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-main clickable" onclick="toggleRow('shelly-id')">
     <span class="row-lbl">Shelly-ID</span>
     <span class="row-val row-mono" id="val-shelly-id">&#x2013;</span>
+    <span class="rdot row-ph"></span>
     <span class="row-arrow" id="arrow-shelly-id">&#x203a;</span>
   </div>
   <div class="row-edit" id="edit-shelly-id">
@@ -244,6 +303,7 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-main clickable" onclick="toggleRow('shelly-host')">
     <span class="row-lbl">Shelly Hostname</span>
     <span class="row-val row-mono" id="val-shelly-host">&#x2013;</span>
+    <span class="rdot row-ph"></span>
     <span class="row-arrow" id="arrow-shelly-host">&#x203a;</span>
   </div>
   <div class="row-edit" id="edit-shelly-host">
@@ -262,28 +322,8 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-main">
     <span class="row-lbl">Shelly IP</span>
     <span class="row-val row-mono" id="val-shelly-ip">&#x2013;</span>
-  </div>
-</div>
-
-<!-- ── Shelly Modell ── -->
-<div class="row-wrap" id="wrap-shelly-model">
-  <div class="row-main clickable" onclick="toggleRow('shelly-model')">
-    <span class="row-lbl">Shelly Modell</span>
-    <span class="row-val" id="val-shelly-model">&#x2013;</span>
-    <span class="row-arrow" id="arrow-shelly-model">&#x203a;</span>
-  </div>
-  <div class="row-edit" id="edit-shelly-model">
-    <label class="edit-lbl">Ger&auml;teprofil</label>
-    <select class="edit-sel" id="sel-device-profile">
-      <option value="marstek">Marstek</option>
-      <option value="noah">ZENDURE Noah</option>
-      <option value="hoymiles">Hoymiles</option>
-      <option value="standard">Standard</option>
-    </select>
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" onclick="saveShellyModel()">Speichern</button>
-    </div>
+    <span class="rdot row-ph"></span>
+    <span class="row-arrow row-ph">&#x203a;</span>
   </div>
 </div>
 
@@ -292,6 +332,7 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-main clickable" onclick="toggleRow('phase')">
     <span class="row-lbl">Phase</span>
     <span class="row-val" id="val-phase">&#x2013;</span>
+    <span class="rdot row-ph"></span>
     <span class="row-arrow" id="arrow-phase">&#x203a;</span>
   </div>
   <div class="row-edit" id="edit-phase">
@@ -312,6 +353,7 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-main clickable" onclick="toggleRow('endpoints')">
     <span class="row-lbl">Shelly Endpunkte</span>
     <span class="row-val" style="color:#8b949e;font-size:.76rem">anzeigen</span>
+    <span class="rdot row-ph"></span>
     <span class="row-arrow" id="arrow-endpoints">&#x203a;</span>
   </div>
   <div class="row-edit" id="edit-endpoints">
@@ -397,7 +439,6 @@ var wifiScanRunning = false;
 var cfg = {
   wifiPassword : '{{.Cfg.WIFIPassword}}',
   hostname     : '{{.Cfg.Hostname}}',
-  deviceProfile: '{{.Cfg.DeviceProfile}}',
   phaseMode    : '{{.Cfg.PhaseMode}}',
   apiKey       : '{{.Cfg.PoweroptiAPIKey}}'
 };
@@ -440,6 +481,23 @@ function render(d) {
   } else {
     setDot(hDot, is401(d.last_error) ? 'yellow' : 'grey');
     hWatt.style.display = 'none';
+  }
+
+  // Meter section
+  var ms = el('meter-section');
+  if (d.poweropti_ok) {
+    ms.style.display = '';
+    txt('val-meter-watt',      fmtWattLbl(d.watt));
+    txt('val-meter-consumed',  fmtKwh(d.consumed_wh));
+    txt('val-meter-ht',        fmtKwh(d.ht_consumed_wh));
+    txt('val-meter-nt',        fmtKwh(d.nt_consumed_wh));
+    txt('val-meter-delivered', fmtKwh(d.delivered_wh));
+    txt('val-meter-ts',        fmtDatetime(d.last_read_at));
+    var showHtNt = (d.ht_consumed_wh > 0 || d.nt_consumed_wh > 0);
+    el('wrap-meter-ht').style.display = showHtNt ? '' : 'none';
+    el('wrap-meter-nt').style.display = showHtNt ? '' : 'none';
+  } else {
+    ms.style.display = 'none';
   }
 
   // poweropti IP
@@ -502,7 +560,6 @@ function render(d) {
   txt('val-shelly-id', d.shelly_id || '–');
   txt('val-shelly-host', cfg.hostname || '–');
   txt('val-shelly-ip', d.bridge_ip || '–');
-  txt('val-shelly-model', profileLabel(cfg.deviceProfile));
 
   // Phase
   if (d.poweropti_ok && d.watt !== undefined) {
@@ -588,8 +645,6 @@ function onOpen(id) {
     el('inp-shelly-mac').value = D.shelly_mac || '';
   } else if (id === 'shelly-host') {
     el('inp-hostname').value = cfg.hostname;
-  } else if (id === 'shelly-model') {
-    el('sel-device-profile').value = cfg.deviceProfile || 'standard';
   } else if (id === 'phase') {
     el('sel-phase-mode').value = D.phase_mode || cfg.phaseMode || 'equal';
   }
@@ -721,10 +776,6 @@ function saveHostname() {
   if (!h) return;
   postSave({ hostname: h }, function(){ cfg.hostname = h; txt('val-shelly-host', h); closeRow(); });
 }
-function saveShellyModel() {
-  var p = el('sel-device-profile').value;
-  postSave({ device_profile: p }, function(){ cfg.deviceProfile = p; txt('val-shelly-model', profileLabel(p)); closeRow(); });
-}
 function savePhase() {
   var m = el('sel-phase-mode').value;
   postSave({ phase_mode: m }, function(){ cfg.phaseMode = m; closeRow(); });
@@ -739,7 +790,7 @@ function buildPayload(ov) {
     poweropti_api_key: cfg.apiKey      || '{{.Cfg.PoweroptiAPIKey}}',
     wifi_ssid        : D.wifi_ssid     || '{{.Cfg.WIFISSID}}',
     wifi_password    : cfg.wifiPassword,
-    device_profile   : cfg.deviceProfile || '{{.Cfg.DeviceProfile}}',
+    device_profile   : 'standard',
     shelly_mac       : D.shelly_mac    || '{{.Cfg.ShellyMAC}}',
     hostname         : cfg.hostname    || '{{.Cfg.Hostname}}',
     phase_mode       : D.phase_mode    || cfg.phaseMode || '{{.Cfg.PhaseMode}}'
@@ -878,16 +929,32 @@ function phaseDisplay(watt, mode) {
   var p = (w/3).toFixed(0);
   return 'L1: '+p+' W / L2: '+p+' W / L3: '+p+' W';
 }
-function profileLabel(p) {
-  return ({marstek:'Marstek',noah:'ZENDURE Noah',hoymiles:'Hoymiles',standard:'Standard'})[p] || p || '–';
+// ================================================================
+// Meter helpers
+// ================================================================
+function fmtKwh(wh) {
+  if (typeof wh !== 'number' || isNaN(wh)) return '–';
+  return (wh / 1000).toFixed(3).replace('.', ',') + ' kWh';
+}
+function fmtWattLbl(w) {
+  if (typeof w !== 'number' || isNaN(w)) return '–';
+  var abs = Math.abs(w);
+  return abs.toFixed(0) + ' W (' + (w < 0 ? 'Einspeisung' : 'Bezug') + ')';
+}
+function fmtDatetime(iso) {
+  if (!iso) return '–';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '–';
+  var p = function(n) { return n < 10 ? '0' + n : '' + n; };
+  return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear()
+    + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
 }
 
 // ================================================================
 // Init
 // ================================================================
 (function(){
-  var sp = el('sel-phase-mode');     if (sp) sp.value = '{{.Cfg.PhaseMode}}';
-  var sd = el('sel-device-profile'); if (sd) sd.value = '{{.Cfg.DeviceProfile}}';
+  var sp = el('sel-phase-mode'); if (sp) sp.value = '{{.Cfg.PhaseMode}}';
   poll();
   checkUpdate();
 })();

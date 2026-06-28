@@ -43,10 +43,18 @@ type Reading struct {
 	// Negative  → feeding into grid.
 	Watt float64
 
-	// ConsumedWh is the total energy consumed from the grid (Wh).
+	// ConsumedWh is the total energy consumed from the grid (Wh) – OBIS 1.8.0.
 	ConsumedWh float64
 
-	// DeliveredWh is the total energy fed into the grid (Wh).
+	// HTConsumedWh is the HT (peak-tariff) consumed energy in Wh – OBIS 1.8.1.
+	// Zero when the meter does not report HT/NT separately.
+	HTConsumedWh float64
+
+	// NTConsumedWh is the NT (off-peak-tariff) consumed energy in Wh – OBIS 1.8.2.
+	// Zero when the meter does not report HT/NT separately.
+	NTConsumedWh float64
+
+	// DeliveredWh is the total energy fed into the grid (Wh) – OBIS 2.8.0.
 	DeliveredWh float64
 
 	// Valid indicates whether the latest poll succeeded.
@@ -225,8 +233,10 @@ func (c *Client) fetch() (*Reading, error) {
 
 	reading := &Reading{
 		Watt:               watt,
-		ConsumedWh:         obisMap["1.8.0"], // already in Wh per spec
-		DeliveredWh:        obisMap["2.8.0"], // already in Wh per spec
+		ConsumedWh:         obisMap["1.8.0"], // Wh total import
+		HTConsumedWh:       obisMap["1.8.1"], // Wh HT import (0 if absent)
+		NTConsumedWh:       obisMap["1.8.2"], // Wh NT import (0 if absent)
+		DeliveredWh:        obisMap["2.8.0"], // Wh total export
 		Valid:              true,
 		At:                 time.Now(),
 		PoweroptiTimestamp: ar.Timestamp,
