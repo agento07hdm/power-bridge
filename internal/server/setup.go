@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fedzzito/power-bridge/internal/config"
@@ -34,11 +36,21 @@ type discoveredDevice struct {
 	MAC string `json:"mac"` // uppercase, colon-separated – also used as API key
 }
 
+// pingIP sends a single ICMP ping to ip to ensure an ARP entry is created.
+// Errors are silently ignored – the ping is best-effort.
+func pingIP(ip string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = exec.CommandContext(ctx, "ping", "-c", "1", "-W", "1", ip).Run()
+}
+
 // discoverPoweropti resolves the well-known "poweropti" hostname via both
-// plain DNS and mDNS (.local) and deduplicates the results.
+// plain DNS and mDNS (.local), pings each found IP to populate the ARP cache,
+// and then reads the MAC address from the kernel ARP table.
+// The MAC doubles as the poweropti API key (12 hex chars, no colons).
 func discoverPoweropti() []discoveredDevice {
 	seen := make(map[string]struct{})
-	devices := []discoveredDevice{}
+	var ips []string
 
 	for _, hostname := range []string{"poweropti", "poweropti.local"} {
 		addrs, err := net.LookupHost(hostname)
@@ -50,9 +62,22 @@ func discoverPoweropti() []discoveredDevice {
 				continue
 			}
 			seen[addr] = struct{}{}
-			mac := lookupMACFromARP(addr)
-			devices = append(devices, discoveredDevice{IP: addr, MAC: mac})
+			ips = append(ips, addr)
 		}
+	}
+
+	// Ping all found IPs concurrently so ARP entries are populated before lookup.
+	var wg sync.WaitGroup
+	for _, ip := range ips {
+		wg.Add(1)
+		go func(ip string) { defer wg.Done(); pingIP(ip) }(ip)
+	}
+	wg.Wait()
+
+	devices := make([]discoveredDevice, 0, len(ips))
+	for _, addr := range ips {
+		mac := lookupMACFromARP(addr)
+		devices = append(devices, discoveredDevice{IP: addr, MAC: mac})
 	}
 	return devices
 }

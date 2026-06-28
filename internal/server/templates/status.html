@@ -62,9 +62,10 @@ details[open] summary::before{content:'-'}
 .dev-item:hover{background:#161b22}
 .dev-item.sel{background:#0d2136}
 .dev-dot{width:7px;height:7px;border-radius:50%;background:#484f58;flex-shrink:0;transition:background .3s}
-.dev-info{flex:1;display:flex;flex-direction:column;gap:.05rem}
+.dev-info{flex:1;display:flex;flex-direction:column;gap:.1rem}
 .dev-ip{font-family:ui-monospace,monospace;font-size:.78rem}
-.dev-mac{font-family:ui-monospace,monospace;font-size:.65rem;color:#6e7681}
+.dev-key{font-size:.68rem;color:#6e7681}
+.dev-key span{font-family:ui-monospace,monospace;color:#8b949e}
 .dev-watt{font-size:.72rem;color:#8b949e;text-align:right;align-self:center}
 </style>
 </head>
@@ -129,6 +130,10 @@ details[open] summary::before{content:'-'}
   <div class="row">
     <span class="lbl" data-i18n="lbl_po_ip">poweropti IP</span>
     <span class="val mono" id="po-ip-disp">–</span>
+  </div>
+  <div class="row" id="po-mac-row" style="display:none">
+    <span class="lbl" data-i18n="lbl_po_key_short">API-Key (MAC)</span>
+    <span class="val mono" id="po-mac-disp" style="font-size:.7rem">–</span>
   </div>
   <div class="row">
     <span class="lbl">WLAN</span>
@@ -296,7 +301,7 @@ var T={de:{
   section_readings:'Messwerte',section_status:'Status',section_settings:'Einstellungen',
   section_poweropti:'poweropti',section_wifi_cfg:'WLAN',section_system:'System',
   section_shelly:'Shelly-Emulation',
-  lbl_last_reading:'Letzte Messung',lbl_error:'Fehler',lbl_po_ip:'poweropti IP',
+  lbl_last_reading:'Letzte Messung',lbl_error:'Fehler',lbl_po_ip:'poweropti IP',lbl_po_key_short:'API-Key (MAC)',
   lbl_bridge_ip:'Bridge IP',lbl_version:'Version',lbl_model:'Modell',lbl_phase:'Phase',
   lbl_endpoints:'Endpunkte',lbl_current_wifi:'Aktuell',lbl_change_wifi:'WLAN wechseln',
   lbl_ssid:'WLAN-Name (SSID)',lbl_password:'Passwort',lbl_po_key:'API-Key',
@@ -333,7 +338,7 @@ var T={de:{
   section_readings:'Readings',section_status:'Status',section_settings:'Settings',
   section_poweropti:'poweropti',section_wifi_cfg:'WiFi',section_system:'System',
   section_shelly:'Shelly Emulation',
-  lbl_last_reading:'Last reading',lbl_error:'Error',lbl_po_ip:'poweropti IP',
+  lbl_last_reading:'Last reading',lbl_error:'Error',lbl_po_ip:'poweropti IP',lbl_po_key_short:'API key (MAC)',
   lbl_bridge_ip:'Bridge IP',lbl_version:'Version',lbl_model:'Model',lbl_phase:'Phase',
   lbl_endpoints:'Endpoints',lbl_current_wifi:'Current',lbl_change_wifi:'Change WiFi',
   lbl_ssid:'Network name (SSID)',lbl_password:'Password',lbl_po_key:'API key',
@@ -454,6 +459,12 @@ var apScanDone=false;var lastStatus=null;
       }
     }
     document.getElementById('po-ip-disp').textContent=d.poweropti_ip||'–';
+    var macRow=document.getElementById('po-mac-row');
+    if(d.poweropti_mac){
+      var mk=d.poweropti_mac.replace(/:/g,'').toLowerCase();
+      document.getElementById('po-mac-disp').textContent=mk;
+      macRow.style.display='flex';
+    } else{macRow.style.display='none';}
 
     // WLAN status
     var wEl=document.getElementById('wifi-txt');
@@ -530,10 +541,11 @@ function renderDevList(devices){
     var li=document.createElement('li');
     li.className='dev-item';
     li.setAttribute('data-ip',dev.ip);
+    var macKey=dev.mac?dev.mac.replace(/:/g,'').toLowerCase():'';
     li.innerHTML='<span class="dev-dot" id="dot-'+escAttr(dev.ip)+'"></span>'+
       '<span class="dev-info">'+
         '<span class="dev-ip">'+escHtml(dev.ip)+'</span>'+
-        (dev.mac?'<span class="dev-mac">'+escHtml(dev.mac)+'</span>':'')+
+        (macKey?'<span class="dev-key">API-Key (MAC): <span>'+escHtml(macKey)+'</span></span>':'<span class="dev-key" style="color:#f85149">MAC nicht ermittelt</span>')+
       '</span>'+
       '<span class="dev-watt" id="watt-'+escAttr(dev.ip)+'"></span>';
     li.onclick=function(){selectDev(dev.ip,key);};
