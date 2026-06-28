@@ -216,6 +216,20 @@ details[open] summary::before{transform:rotate(90deg)}
   </div>
 </div>
 
+<!-- Factory-Reset Feedback Overlay (shown after successful reset) -->
+<div class="modal-overlay" id="reset-feedback-overlay" style="display:none">
+  <div class="modal-box" style="text-align:center;padding:1.5rem 1.1rem">
+    <div style="font-size:2.5rem;margin-bottom:1rem">&#x26A1;</div>
+    <h2 style="color:#eee;font-size:1.05rem;font-weight:700;margin-bottom:.85rem" data-i18n="reset_feedback_title">Gerät wird zurückgesetzt</h2>
+    <p style="font-size:.9rem;color:#aaa;line-height:1.7" id="reset-feedback-body">
+      Die power-bridge wechselt jetzt in den Einrichtungsmodus.<br><br>
+      Das WLAN <strong style="color:#eee">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>
+      Verbinde dich damit und öffne:<br>
+      <a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>
+    </p>
+  </div>
+</div>
+
 <script>
 var T={de:{
   section_poweropti:'\u{1F4E1} poweropti',
@@ -246,6 +260,8 @@ var T={de:{
   reset_cancel:'Abbrechen',
   reset_progress:'Zurücksetzen…',
   reset_done:'Zurückgesetzt. Gerät startet neu…',
+  reset_feedback_title:'Gerät wird zurückgesetzt',
+  reset_feedback_body:'Die power-bridge wechselt jetzt in den Einrichtungsmodus.<br><br>Das WLAN <strong style="color:#eee">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>Verbinde dich damit und öffne:<br><a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>',
   shelly_active:'aktiv',shelly_inactive:'inaktiv',
   consumed:'↓ Bezug',delivered:'↑ Einspeisung',
   wifi_ap:'AP-Modus',wifi_no:'Nicht verbunden',wifi_connecting:'Verbindet…',
@@ -282,6 +298,8 @@ var T={de:{
   reset_cancel:'Cancel',
   reset_progress:'Resetting…',
   reset_done:'Reset complete. Device restarting…',
+  reset_feedback_title:'Device is being reset',
+  reset_feedback_body:'The power-bridge is switching to setup mode.<br><br>The WiFi network <strong style="color:#eee">"power-bridge"</strong> will appear in a few seconds.<br><br>Connect to it and open:<br><a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>',
   shelly_active:'active',shelly_inactive:'inactive',
   consumed:'↓ Consumption',delivered:'↑ Feed-in',
   wifi_ap:'AP mode',wifi_no:'Not connected',wifi_connecting:'Connecting…',
@@ -504,8 +522,11 @@ function doFactoryReset(){
       msg.textContent='Fehler: '+d.error;msg.style.display='block';
       btn.disabled=false;cancel.disabled=false;btn.textContent=t('reset_confirm_label');
     } else {
-      msg.style.background='#064e3b';msg.style.color='#6ee7b7';
-      msg.textContent=t('reset_done');msg.style.display='block';
+      closeResetModal();
+      var overlay=document.getElementById('reset-feedback-overlay');
+      var body=document.getElementById('reset-feedback-body');
+      body.innerHTML=t('reset_feedback_body');
+      overlay.style.display='flex';
     }
   }).catch(function(e){
     var msg=document.getElementById('reset-msg');

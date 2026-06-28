@@ -50,18 +50,10 @@ details[open] summary::before{transform:rotate(90deg)}
 .modal-box{background:#16213e;border-radius:.75rem;padding:1.1rem;width:100%;max-width:480px}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
 .modal-title{font-size:1rem;font-weight:700;color:#e94560}
-.chart-svg{width:100%;height:200px;background:#0a0a1a;border-radius:.5rem;display:block}
-.chart-info{font-size:.85rem;color:#aaa;margin-top:.5rem;text-align:center}
-.alert{padding:.65rem .9rem;border-radius:.5rem;margin-bottom:.85rem;font-size:.88rem}
-.alert-success{background:#064e3b;color:#6ee7b7}
 .mono{font-family:monospace;font-size:.82rem;color:#9ca3af}
 </style>
 </head>
 <body>
-
-{{if .SetupDone}}
-<div class="alert alert-success">&#x2705; <span data-i18n="setup_done">Konfiguration gespeichert. Verbinde mit WLAN&#x2026;</span></div>
-{{end}}
 
 <!-- Header -->
 <div class="header">
@@ -104,9 +96,6 @@ details[open] summary::before{transform:rotate(90deg)}
       <span id="delivered-display"></span>
     </div>
     <div style="text-align:center;font-size:.75rem;color:#6b7280;margin-bottom:.4rem" id="po-age"></div>
-  </div>
-  <div style="text-align:center;margin-top:.3rem">
-    <button class="btn btn-secondary" onclick="openChart()" data-i18n="btn_chart">&#x1F4C8; Leistungswertanalyse</button>
   </div>
 </div>
 
@@ -216,19 +205,21 @@ details[open] summary::before{transform:rotate(90deg)}
       <button class="btn btn-secondary" onclick="closeResetModal()" id="reset-cancel-btn" data-i18n="reset_cancel">Abbrechen</button>
       <button class="btn btn-danger" onclick="doFactoryReset()" id="reset-confirm-btn" data-i18n="reset_confirm_label">Ja, zurücksetzen</button>
     </div>
-    <p id="reset-msg" style="display:none;margin-top:.6rem;font-size:.82rem;color:#6ee7b7;background:#064e3b;padding:.5rem .75rem;border-radius:.4rem"></p>
+    <p id="reset-msg" style="display:none;margin-top:.6rem;font-size:.82rem;color:#f87171;background:#4a0e0e;padding:.5rem .75rem;border-radius:.4rem"></p>
   </div>
 </div>
 
-<!-- Chart modal -->
-<div class="modal-overlay" id="chart-modal" onclick="closeChartIfBg(event)">
-  <div class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title" data-i18n="chart_title">&#x1F4C8; Leistungswertanalyse</span>
-      <button class="btn btn-secondary" onclick="closeChart()" style="padding:.3rem .7rem" data-i18n="chart_close">&#x2715; Schlie&#xDF;en</button>
-    </div>
-    <svg class="chart-svg" id="chart-svg" viewBox="0 0 400 200" preserveAspectRatio="none"></svg>
-    <div class="chart-info" id="chart-info"></div>
+<!-- Factory-Reset Feedback Overlay (shown after successful reset) -->
+<div class="modal-overlay" id="reset-feedback-overlay" style="display:none">
+  <div class="modal-box" style="text-align:center;padding:1.5rem 1.1rem">
+    <div style="font-size:2.5rem;margin-bottom:1rem">&#x26A1;</div>
+    <h2 style="color:#eee;font-size:1.05rem;font-weight:700;margin-bottom:.85rem" data-i18n="reset_feedback_title">Gerät wird zurückgesetzt</h2>
+    <p style="font-size:.9rem;color:#aaa;line-height:1.7" id="reset-feedback-body">
+      Die power-bridge wechselt jetzt in den Einrichtungsmodus.<br><br>
+      Das WLAN <strong style="color:#eee">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>
+      Verbinde dich damit und öffne:<br>
+      <a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>
+    </p>
   </div>
 </div>
 
@@ -240,31 +231,31 @@ var T={de:{
   lbl_wifi_status:'WLAN',lbl_model:'Modell',lbl_phase:'Phasenverteilung',
   lbl_endpoints:'Endpunkte',lbl_current_wifi:'Aktuelles WLAN',
   lbl_scan_networks:'Netzwerke in der Umgebung',
-  po_ok:'\u2713 Verbunden',po_err:'\u2717 Nicht erreichbar',
+  po_ok:'✓ Verbunden',po_err:'✗ Nicht erreichbar',
   wifi_connected:'Verbunden',wifi_ap:'AP-Modus (Setup)',wifi_no_ssid:'Nicht verbunden',
-  status_ok:'Alles in Ordnung',status_warn:'Verbunden \u2013 poweropti nicht erreichbar',
-  status_err:'AP-Modus \u2013 Setup erforderlich',status_wait:'\u2026',
-  btn_chart:'\u{1F4C8} Leistungswertanalyse',btn_wifi_change:'\u{1F527} WLAN \u00e4ndern',
+  status_ok:'Alles in Ordnung',status_warn:'Verbunden – poweropti nicht erreichbar',
+  status_err:'AP-Modus – Setup erforderlich',status_wait:'…',
+  btn_wifi_change:'\u{1F527} WLAN ändern',
   btn_wifi_forget:'\u{1F5D1} WLAN vergessen',btn_scan:'\u{1F50D} Suche aktualisieren',
-  btn_restart:'\u{1F504} Neustart',btn_settings:'\u2699 Einstellungen',
-  btn_update:'\u2B06 Aktualisieren',update_available:'Update verf\u00fcgbar',
-  update_started:'Update wird eingespielt\u2026',
-  chart_title:'\u{1F4C8} Leistungswertanalyse',chart_close:'\u2715 Schlie\u00dfen',
-  forget_confirm:'WLAN-Zugangsdaten wirklich l\u00f6schen? Die power-bridge wechselt in den AP-Modus.',
-  reset_btn:'\u267b Ger\u00e4t zur\u00fccksetzen',
-  reset_modal_title:'Zur Factory-Reset best\u00e4tigen',
-  reset_modal_body:'Alle benutzerspezifischen Daten werden gel\u00f6scht:\n\u2022 WLAN-Name und Passwort\n\u2022 poweropti-IP und API-Schl\u00fcssel\n\nDas Ger\u00e4t startet danach im Setup-Modus und kann einem neuen Nutzer \u00fcbergeben werden.',
-  reset_confirm_label:'Ja, Ger\u00e4t zur\u00fccksetzen',
+  btn_restart:'\u{1F504} Neustart',btn_settings:'⚙ Einstellungen',
+  btn_update:'⬆ Aktualisieren',update_available:'Update verfügbar',
+  update_started:'Update wird eingespielt…',
+  update_done:'✓ Neueste Version installiert',
+  forget_confirm:'WLAN-Zugangsdaten wirklich löschen? Die power-bridge wechselt in den AP-Modus.',
+  reset_btn:'♻ Gerät zurücksetzen',
+  reset_modal_title:'Factory-Reset bestätigen',
+  reset_modal_body:'Alle benutzerspezifischen Daten werden gelöscht:\n• WLAN-Name und Passwort\n• poweropti-IP und API-Schlüssel\n\nDas Gerät startet danach im Setup-Modus und kann einem neuen Nutzer übergeben werden.',
+  reset_confirm_label:'Ja, Gerät zurücksetzen',
   reset_cancel:'Abbrechen',
-  reset_progress:'Zur\u00fccksetzen\u2026',
-  reset_done:'Zur\u00fcckgesetzt. Ger\u00e4t startet neu\u2026',
-  forget_ap_info:'AP-Modus aktiv. Verbinde dich jetzt mit dem WLAN <strong>"power-bridge"</strong> und \u00f6ffne <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
-  wifi_connecting:'Verbindet\u2026',
-  setup_done:'Konfiguration gespeichert. Verbinde mit WLAN\u2026',
+  reset_progress:'Zurücksetzen…',
+  reset_feedback_title:'Gerät wird zurückgesetzt',
+  reset_feedback_body:'Die power-bridge wechselt jetzt in den Einrichtungsmodus.<br><br>Das WLAN <strong style="color:#eee">"power-bridge"</strong> erscheint in wenigen Sekunden.<br><br>Verbinde dich damit und öffne:<br><a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>',
+  forget_ap_info:'AP-Modus aktiv. Verbinde dich jetzt mit dem WLAN <strong>"power-bridge"</strong> und öffne <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
+  wifi_connecting:'Verbindet…',
   phase_equal:'Gleich (L1=L2=L3)',phase_l1:'Alles auf L1',
   restart_confirm:'Raspberry Pi wirklich neu starten?',
-  update_confirm:'Update jetzt durchf\u00fchren? Die bridge wird kurz neu gestartet.',
-  consumed:'\u2193 Bezug',delivered:'\u2191 Einspeisung',
+  update_confirm:'Update jetzt durchführen? Die bridge wird kurz neu gestartet.',
+  consumed:'↓ Bezug',delivered:'↑ Einspeisung',
   last_update:'Letzte Aktualisierung'
 },en:{
   section_poweropti:'\u{1F4E1} poweropti',section_bridge:'\u{1F50C} power-bridge',
@@ -273,16 +264,16 @@ var T={de:{
   lbl_wifi_status:'WiFi',lbl_model:'Model',lbl_phase:'Phase distribution',
   lbl_endpoints:'Endpoints',lbl_current_wifi:'Current WiFi',
   lbl_scan_networks:'Networks nearby',
-  po_ok:'\u2713 Connected',po_err:'\u2717 Unreachable',
+  po_ok:'✓ Connected',po_err:'✗ Unreachable',
   wifi_connected:'Connected',wifi_ap:'AP mode (setup)',wifi_no_ssid:'Not connected',
-  status_ok:'All systems OK',status_warn:'Connected \u2013 poweropti unreachable',
-  status_err:'AP mode \u2013 setup required',status_wait:'\u2026',
-  btn_chart:'\u{1F4C8} Power analysis',btn_wifi_change:'\u{1F527} Change WiFi',
+  status_ok:'All systems OK',status_warn:'Connected – poweropti unreachable',
+  status_err:'AP mode – setup required',status_wait:'…',
+  btn_wifi_change:'\u{1F527} Change WiFi',
   btn_wifi_forget:'\u{1F5D1} Forget WiFi',btn_scan:'\u{1F50D} Refresh scan',
-  btn_restart:'\u{1F504} Restart',btn_settings:'\u2699 Settings',
-  btn_update:'\u2B06 Update now',update_available:'Update available',
-  update_started:'Update in progress\u2026',
-  chart_title:'\u{1F4C8} Power analysis',chart_close:'\u2715 Close',
+  btn_restart:'\u{1F504} Restart',btn_settings:'⚙ Settings',
+  btn_update:'⬆ Update now',update_available:'Update available',
+  update_started:'Update in progress…',
+  update_done:'✓ Latest version installed',
   forget_confirm:'Really delete WiFi credentials? The power-bridge will switch to AP mode.',
   reset_btn:'♻ Factory Reset',
   reset_modal_title:'Confirm Factory Reset',
@@ -290,14 +281,14 @@ var T={de:{
   reset_confirm_label:'Yes, reset device',
   reset_cancel:'Cancel',
   reset_progress:'Resetting…',
-  reset_done:'Reset complete. Device is restarting…',
+  reset_feedback_title:'Device is being reset',
+  reset_feedback_body:'The power-bridge is switching to setup mode.<br><br>The WiFi network <strong style="color:#eee">"power-bridge"</strong> will appear in a few seconds.<br><br>Connect to it and open:<br><a href="http://192.168.4.1" style="color:#6ee7b7;font-weight:600;font-size:1rem">http://192.168.4.1</a>',
   forget_ap_info:'AP mode active. Connect to WiFi <strong>"power-bridge"</strong> and open <a href="http://192.168.4.1" style="color:#6ee7b7">http://192.168.4.1</a>',
-  wifi_connecting:'Connecting\u2026',
-  setup_done:'Configuration saved. Connecting to WiFi\u2026',
+  wifi_connecting:'Connecting…',
   phase_equal:'Equal (L1=L2=L3)',phase_l1:'All on L1',
   restart_confirm:'Really reboot the Raspberry Pi?',
   update_confirm:'Apply update now? The bridge will restart briefly.',
-  consumed:'\u2193 Consumption',delivered:'\u2191 Feed-in',
+  consumed:'↓ Consumption',delivered:'↑ Feed-in',
   last_update:'Last update'
 }};
 
@@ -346,34 +337,38 @@ function fmtKwh(wh){
   return(wh/1000).toFixed(3)+' kWh';
 }
 function fmtWattSimple(w){
-  return w>=0?w.toFixed(1)+' W \u2193':(-w).toFixed(1)+' W \u2191';
+  return w>=0?w.toFixed(1)+' W ↓':(-w).toFixed(1)+' W ↑';
 }
 function ageStr(iso){
-  if(!iso)return'\u2013';
+  if(!iso)return'–';
   var d=Math.round((Date.now()-new Date(iso).getTime())/1000);
   if(d<0)d=0;if(d<60)return d+'s ago';return Math.round(d/60)+'m ago';
 }
 function phaseLabel(m){return m==='l1'?t('phase_l1'):t('phase_equal');}
 
+// OTA update tracking
+var latestVersion='';
+var updateApplied=false;
+
 var scanAutoTriggered=false;
 (function poll(){
   fetch('/api/status').then(function(r){return r.json();}).then(function(d){
-    document.getElementById('po-ip').textContent=d.poweropti_ip||'\u2013';
-    document.getElementById('po-mac').textContent=d.poweropti_mac||'\u2013';
+    document.getElementById('po-ip').textContent=d.poweropti_ip||'–';
+    document.getElementById('po-mac').textContent=d.poweropti_mac||'–';
     var badge=document.getElementById('po-badge');
     if(d.poweropti_ok){badge.textContent=t('po_ok');badge.className='badge badge-ok';}
     else{badge.textContent=t('po_err');badge.className='badge badge-err';}
     var errEl=document.getElementById('po-error');
-    if(d.last_error){errEl.textContent='\u26a0 '+d.last_error.slice(0,200);errEl.style.display='block';}
+    if(d.last_error){errEl.textContent='⚠ '+d.last_error.slice(0,200);errEl.style.display='block';}
     else errEl.style.display='none';
     var wEl=document.getElementById('watt-display');
-    wEl.textContent=d.poweropti_ok?fmtWattSimple(d.watt):'\u2013';
+    wEl.textContent=d.poweropti_ok?fmtWattSimple(d.watt):'–';
     wEl.style.color=d.watt<0?'#6ee7b7':'#e94560';
     document.getElementById('consumed-display').textContent=d.poweropti_ok?t('consumed')+': '+fmtKwh(d.consumed_wh):'';
     document.getElementById('delivered-display').textContent=d.poweropti_ok?t('delivered')+': '+fmtKwh(d.delivered_wh):'';
     document.getElementById('po-age').textContent=d.last_read_at?t('last_update')+': '+ageStr(d.last_read_at):'';
-    document.getElementById('br-ip').textContent=d.bridge_ip||'\u2013';
-    document.getElementById('br-mac').textContent=d.bridge_mac||'\u2013';
+    document.getElementById('br-ip').textContent=d.bridge_ip||'–';
+    document.getElementById('br-mac').textContent=d.bridge_mac||'–';
     var connectedSSID=d.wifi_connected_ssid||'';
     var connected=!d.is_ap_mode&&!!connectedSSID;
     setWifiIcon(d.wifi_rssi,connected);
@@ -383,12 +378,10 @@ var scanAutoTriggered=false;
     else if(d.wifi_ssid)wLabel.textContent=t('wifi_connecting');
     else wLabel.textContent=t('wifi_no_ssid');
     document.getElementById('br-rssi').textContent=d.wifi_rssi+' dBm';
-    document.getElementById('sh-id').textContent=d.shelly_id||'\u2013';
-    document.getElementById('sh-mac').textContent=d.shelly_mac||'\u2013';
-    document.getElementById('sh-model').textContent=d.shelly_model||'\u2013';
+    document.getElementById('sh-id').textContent=d.shelly_id||'–';
+    document.getElementById('sh-mac').textContent=d.shelly_mac||'–';
+    document.getElementById('sh-model').textContent=d.shelly_model||'–';
     document.getElementById('sh-phase').textContent=phaseLabel(d.phase_mode);
-    // Show actual connected SSID in the WiFi config section; if still connecting
-    // (configured SSID set but not yet associated) indicate the transition.
     var wifiCurrent=document.getElementById('wifi-current');
     if(d.is_ap_mode){wifiCurrent.textContent=t('wifi_ap');}
     else if(connectedSSID){
@@ -407,7 +400,18 @@ var scanAutoTriggered=false;
       scanWifiStatus();
     }
     setTraffic(d.poweropti_ok,d.is_ap_mode);
-    if(d.version)document.getElementById('ver-display').textContent='v'+d.version;
+    if(d.version){
+      document.getElementById('ver-display').textContent='v'+d.version;
+      // #2: Hide update banner when installed version matches the available update
+      if(updateApplied && latestVersion && d.version===latestVersion){
+        updateApplied=false;
+        document.getElementById('update-banner').style.display='none';
+        var msg=document.getElementById('action-msg');
+        msg.style.color='#6ee7b7';
+        msg.textContent=t('update_done')+' – v'+d.version;
+        setTimeout(function(){msg.textContent='';msg.style.color='#aaa';},4000);
+      }
+    }
     applyLang();
   }).catch(function(){});
   setTimeout(poll,3000);
@@ -415,7 +419,7 @@ var scanAutoTriggered=false;
 
 function scanWifiStatus(){
   var list=document.getElementById('ssid-status-list');
-  list.innerHTML='<li style="color:#6b7280;padding:.2rem .4rem;font-size:.8rem">\u{1F50D} Suche\u2026</li>';
+  list.innerHTML='<li style="color:#6b7280;padding:.2rem .4rem;font-size:.8rem">\u{1F50D} Suche…</li>';
   fetch('/setup/scan').then(function(r){return r.json();}).then(function(d){
     list.innerHTML='';
     var ssids=d.ssids||[];
@@ -459,79 +463,29 @@ function wifiForget(){
 function restartService(){
   if(!confirm(t('restart_confirm')))return;
   fetch('/api/restart',{method:'POST'}).then(function(){
-    document.getElementById('action-msg').textContent='Neustart angefordert\u2026';
+    document.getElementById('action-msg').textContent='Neustart angefordert…';
   });
 }
 
 function checkUpdate(){
   fetch('/api/update/check').then(function(r){return r.json();}).then(function(d){
     if(!d.update_available)return;
-    document.getElementById('update-info').textContent=t('update_available')+': '+d.current_version+' \u2192 '+d.latest_version;
+    latestVersion=d.latest_version;
+    document.getElementById('update-info').textContent=t('update_available')+': '+d.current_version+' → '+d.latest_version;
     document.getElementById('update-banner').style.display='flex';
   }).catch(function(){});
 }
 function applyUpdate(){
   if(!confirm(t('update_confirm')))return;
   var btn=document.getElementById('btn-update');btn.disabled=true;
+  updateApplied=true;
   fetch('/api/update/apply',{method:'POST'}).then(function(){
     document.getElementById('update-info').textContent=t('update_started');
   });
 }
-function dismissUpdate(){document.getElementById('update-banner').style.display='none';}
-
-var chartBuf=[];var chartTimer=null;
-function openChart(){
-  document.getElementById('chart-modal').style.display='flex';
-  if(!chartTimer)chartTimer=setInterval(chartTick,3000);
-  chartTick();
-}
-function closeChart(){
-  document.getElementById('chart-modal').style.display='none';
-  if(chartTimer){clearInterval(chartTimer);chartTimer=null;}
-}
-function closeChartIfBg(e){if(e.target===document.getElementById('chart-modal'))closeChart();}
-function chartTick(){
-  fetch('/api/status').then(function(r){return r.json();}).then(function(d){
-    chartBuf.push({t:Date.now(),w:d.watt});
-    if(chartBuf.length>200)chartBuf.shift();
-    renderChart(d);
-  }).catch(function(){});
-}
-function renderChart(d){
-  var svg=document.getElementById('chart-svg');
-  if(!svg||!chartBuf.length)return;
-  var W=400,H=200,PL=52,PR=10,PT=15,PB=25;
-  var pw=W-PL-PR,ph=H-PT-PB;
-  var watts=chartBuf.map(function(p){return p.w;});
-  var mn=Math.min.apply(null,watts),mx=Math.max.apply(null,watts);
-  var rng=mx-mn||100;mn-=rng*.1;mx+=rng*.1;
-  function sy(v){return PT+ph*(1-(v-mn)/(mx-mn));}
-  var pts=chartBuf.map(function(p,i){
-    var x=PL+(i/(chartBuf.length-1||1))*pw;
-    return x.toFixed(1)+','+sy(p.w).toFixed(1);
-  }).join(' ');
-  var zy=sy(0);
-  var h='';
-  h+='<line x1="'+PL+'" y1="'+PT+'" x2="'+PL+'" y2="'+(PT+ph)+'" stroke="#2a3a5e" stroke-width="1"/>';
-  h+='<line x1="'+PL+'" y1="'+(PT+ph)+'" x2="'+(PL+pw)+'" y2="'+(PT+ph)+'" stroke="#2a3a5e" stroke-width="1"/>';
-  if(zy>PT&&zy<PT+ph)
-    h+='<line x1="'+PL+'" y1="'+zy+'" x2="'+(PL+pw)+'" y2="'+zy+'" stroke="#3b4f7e" stroke-width="1" stroke-dasharray="4,4"/>';
-  if(chartBuf.length>1)
-    h+='<polyline points="'+pts+'" fill="none" stroke="#e94560" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
-  h+='<text x="'+(PL-4)+'" y="'+(PT+6)+'" text-anchor="end" fill="#9ca3af" font-size="11">'+Math.round(mx)+'</text>';
-  h+='<text x="'+(PL-4)+'" y="'+(PT+ph)+'" text-anchor="end" fill="#9ca3af" font-size="11">'+Math.round(mn)+'</text>';
-  if(zy>PT+14&&zy<PT+ph-8)
-    h+='<text x="'+(PL-4)+'" y="'+zy+'" text-anchor="end" fill="#9ca3af" font-size="11">0</text>';
-  if(chartBuf.length>1){
-    function fmt(ts){var d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')+':'+d.getSeconds().toString().padStart(2,'0');}
-    h+='<text x="'+PL+'" y="'+(PT+ph+16)+'" fill="#6b7280" font-size="10">'+fmt(chartBuf[0].t)+'</text>';
-    h+='<text x="'+(PL+pw)+'" y="'+(PT+ph+16)+'" text-anchor="end" fill="#6b7280" font-size="10">'+fmt(chartBuf[chartBuf.length-1].t)+'</text>';
-  }
-  svg.innerHTML=h;
-  if(d){
-    document.getElementById('chart-info').textContent=
-      fmtWattSimple(d.watt)+' | '+t('consumed')+' '+fmtKwh(d.consumed_wh)+' | '+t('delivered')+' '+fmtKwh(d.delivered_wh);
-  }
+function dismissUpdate(){
+  document.getElementById('update-banner').style.display='none';
+  updateApplied=false;
 }
 
 function openResetModal(){
@@ -540,6 +494,7 @@ function openResetModal(){
   document.getElementById('reset-cancel-btn').textContent=t('reset_cancel');
   document.getElementById('reset-confirm-btn').textContent=t('reset_confirm_label');
   document.getElementById('reset-confirm-btn').disabled=false;
+  document.getElementById('reset-cancel-btn').disabled=false;
   document.getElementById('reset-msg').style.display='none';
   document.getElementById('reset-modal').style.display='flex';
 }
@@ -551,15 +506,19 @@ function doFactoryReset(){
   btn.disabled=true;cancelBtn.disabled=true;
   btn.textContent=t('reset_progress');
   fetch('/api/factory-reset',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
-    var msg=document.getElementById('reset-msg');
     if(d.error){
+      var msg=document.getElementById('reset-msg');
       msg.style.background='#4a0e0e';msg.style.color='#f87171';
       msg.textContent='Fehler: '+d.error;msg.style.display='block';
       btn.disabled=false;cancelBtn.disabled=false;
       btn.textContent=t('reset_confirm_label');
     } else {
-      msg.style.background='#064e3b';msg.style.color='#6ee7b7';
-      msg.textContent=t('reset_done');msg.style.display='block';
+      // Show full-screen feedback overlay
+      closeResetModal();
+      var overlay=document.getElementById('reset-feedback-overlay');
+      var body=document.getElementById('reset-feedback-body');
+      body.innerHTML=t('reset_feedback_body');
+      overlay.style.display='flex';
     }
   }).catch(function(e){
     var msg=document.getElementById('reset-msg');
