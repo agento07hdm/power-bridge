@@ -121,6 +121,7 @@ func TestShellyGetStatus_ContainsEM0(t *testing.T) {
 }
 
 func TestSetupRedirectWhenNotConfigured(t *testing.T) {
+	// Since v0.7.7 the root always serves the status page (setup is inline).
 	cfg := config.Defaults()
 	cfg.Configured = false
 	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
@@ -129,15 +130,13 @@ func TestSetupRedirectWhenNotConfigured(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusFound {
-		t.Fatalf("expected 302 redirect, got %d", w.Code)
-	}
-	if loc := w.Header().Get("Location"); !strings.HasPrefix(loc, "/setup") {
-		t.Errorf("expected redirect to /setup, got %q", loc)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 status page, got %d", w.Code)
 	}
 }
 
-func TestSetupPageRendered(t *testing.T) {
+func TestSetupPageRedirectsToRoot(t *testing.T) {
+	// Since v0.7.7 /setup redirects to / (setup is integrated into status page).
 	cfg := config.Defaults()
 	cfg.Configured = false
 	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
@@ -146,15 +145,11 @@ func TestSetupPageRendered(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect to /, got %d", w.Code)
 	}
-	body := w.Body.String()
-	if !strings.Contains(body, "power-bridge") {
-		t.Error("setup page should contain 'power-bridge'")
-	}
-	if !strings.Contains(body, "wifi_ssid") {
-		t.Error("setup page should contain wifi_ssid field")
+	if loc := w.Header().Get("Location"); loc != "/" {
+		t.Errorf("expected redirect to /, got %q", loc)
 	}
 }
 
@@ -864,7 +859,8 @@ func TestRootHandler_APMode_UnknownPath_RedirectsToWifi(t *testing.T) {
 	}
 }
 
-func TestRootHandler_NormalMode_NotConfigured_RedirectsToSetup(t *testing.T) {
+func TestRootHandler_NormalMode_NotConfigured_ServesStatusPage(t *testing.T) {
+	// Since v0.7.7 the status page is always served at / regardless of config state.
 	cfg := config.Defaults()
 	cfg.Configured = false
 	srv := server.New(cfg, "/tmp/test-config.yaml", nil)
@@ -873,11 +869,8 @@ func TestRootHandler_NormalMode_NotConfigured_RedirectsToSetup(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusFound {
-		t.Fatalf("expected 302 redirect, got %d", w.Code)
-	}
-	if loc := w.Header().Get("Location"); !strings.HasPrefix(loc, "/setup") {
-		t.Errorf("expected redirect to /setup, got %q", loc)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 status page, got %d", w.Code)
 	}
 }
 
