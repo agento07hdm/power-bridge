@@ -77,7 +77,7 @@ input:focus{outline:none;border-color:#388bfd}
     <input type="password" id="manual-password" placeholder="Passwort" autocomplete="current-password">
     <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">*</button>
   </div>
-  <a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenManualClick()">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>
+  <a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenManualClick(event)">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>
   <p class="connect-hint">&Ouml;ffnen Sie power-bridge.local im Browser und warten Sie ca. 30 Sekunden, bis die power-bridge online ist und die Oberfl&auml;che geladen wurde.</p>
 </div>
 
@@ -133,7 +133,7 @@ function renderNetworks(ssids){
           '<input type="password" id="inp-'+escAttr(s)+'" placeholder="Passwort" autocomplete="current-password">'+
           '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-'+escAttr(s)+'\',this)" title="Passwort anzeigen">*</button>'+
         '</div>'+
-        '<a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenClick(\''+escJs(s)+'\')">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>'+
+        '<a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenClick(event,\''+escJs(s)+'\')">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>'+
         '<p class="connect-hint">&Ouml;ffnen Sie power-bridge.local im Browser und warten Sie ca. 30 Sekunden, bis die power-bridge online ist und die Oberfl&auml;che geladen wurde.</p>'+
       '</div>';
     list.appendChild(li);
@@ -170,15 +170,29 @@ function connectManual(){
   doConnect(ssid,pass);
 }
 // Neue Handler für <a>-Verbinden-Buttons
-function onVerbindenClick(ssid){
+function openInBrowser(aEl){
+  var isAndroid=/android/i.test(navigator.userAgent);
+  if(isAndroid){
+    // Intent-URL öffnet den echten Standard-Browser auf Android
+    aEl.href='intent://power-bridge.local#Intent;scheme=http;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
+    aEl.removeAttribute('target');
+  } else {
+    // iOS/Desktop: normales target="_blank" öffnet Safari/Browser
+    aEl.href='http://power-bridge.local';
+    aEl.target='_blank';
+  }
+}
+function onVerbindenClick(e,ssid){
   var inp=document.getElementById('inp-'+ssid);
   doConnect(ssid, inp?inp.value:'');
-  return true; // Link-Navigation zulassen → öffnet power-bridge.local im echten Browser
+  openInBrowser(e.currentTarget||e.target);
+  return true;
 }
-function onVerbindenManualClick(){
+function onVerbindenManualClick(e){
   var ssid=document.getElementById('manual-ssid').value.trim();
   if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return false;}
   doConnect(ssid, document.getElementById('manual-password').value);
+  openInBrowser(e.currentTarget||e.target);
   return true;
 }
 function toggleManual(){
