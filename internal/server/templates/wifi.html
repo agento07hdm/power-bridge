@@ -59,6 +59,16 @@ input:focus{outline:none;border-color:#388bfd}
 .btn-browser:hover{background:#1f6feb;color:#fff}
 .copy-url{display:inline-block;background:#21262d;border:1px solid #30363d;border-radius:.25rem;padding:.15rem .45rem;font-family:monospace;font-size:.82rem;cursor:pointer;color:#58a6ff;margin:.3rem 0}
 .copy-url:active{background:#388bfd;color:#fff}
+/* Modal */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:999;padding:1.5rem}
+.modal-ov.hidden{display:none}
+.modal-card{background:#161b22;border:1px solid #30363d;border-radius:.5rem;padding:1.5rem 1.25rem;max-width:340px;width:100%;text-align:center}
+.modal-title{font-size:.82rem;color:#8b949e;margin-bottom:.55rem}
+.modal-url{font-family:monospace;font-size:1.05rem;color:#e6edf3;font-weight:600;background:#0d1117;border:1px solid #30363d;border-radius:.3rem;padding:.5rem .75rem;margin:.5rem 0 1rem;display:block;word-break:break-all}
+.btn-copy-modal{display:block;width:100%;padding:.6rem;border-radius:.3rem;border:none;cursor:pointer;font-size:.9rem;font-weight:600;background:#1f6feb;color:#fff;transition:background .2s}
+.btn-copy-modal.done{background:#238636}
+.btn-close-modal{display:block;width:100%;padding:.45rem;border-radius:.3rem;border:1px solid #30363d;cursor:pointer;font-size:.82rem;background:none;color:#8b949e;margin-top:.55rem;transition:opacity .2s}
+.btn-close-modal:disabled{opacity:.35;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -91,6 +101,16 @@ input:focus{outline:none;border-color:#388bfd}
 </div>
 
 <div id="status-box" class="status"></div>
+
+<!-- Modal: URL kopieren nach dem Verbinden -->
+<div class="modal-ov hidden" id="url-modal">
+  <div class="modal-card">
+    <p class="modal-title">Verbindung gespeichert ✓<br>Kopiere die Adresse und öffne sie nach ca. 30 s im Browser:</p>
+    <span class="modal-url">power-bridge.local</span>
+    <button type="button" class="btn-copy-modal" id="btn-copy-modal" onclick="modalCopy()">Adresse kopieren</button>
+    <button type="button" class="btn-close-modal" id="btn-close-modal" disabled onclick="modalClose()">Schließen (nach dem Kopieren)</button>
+  </div>
+</div>
 
 <script>
 var pollTimer=null,pollStart=0,fetchFailures=0,expectedSSID='',lastStatus=null;
@@ -167,29 +187,34 @@ function closeActive(){
   if(el)el.classList.remove('active');if(pw)pw.classList.remove('open');
   activeSSID=null;
 }
+var pendingConnectSSID='', pendingConnectPass='';
+
 function connectSelected(ssid){
   var inp=document.getElementById('inp-'+ssid);
-  doConnect(ssid,inp?inp.value:'');
+  pendingConnectSSID=ssid;
+  pendingConnectPass=inp?inp.value:'';
+  showUrlModal();
 }
 function connectManual(){
   var ssid=document.getElementById('manual-ssid').value.trim();
-  var pass=document.getElementById('manual-password').value;
   if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return;}
-  doConnect(ssid,pass);
+  pendingConnectSSID=ssid;
+  pendingConnectPass=document.getElementById('manual-password').value;
+  showUrlModal();
 }
 function openInRealBrowser(){
-  var url='http://'+window.location.host+window.location.pathname;
-  var isAndroid=/android/i.test(navigator.userAgent);
-  if(isAndroid){
-    window.location.href='intent://'+window.location.host+'/#Intent;scheme=http;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
-  } else {
-    window.open(url,'_blank');
-  }
+  // Öffnet die aktuelle Seite in einem neuen Tab/Fenster (funktioniert auf iOS/Desktop).
+  // Auf Android-CNA wird window.open blockiert – dort hilft nur manuelle Eingabe.
+  window.open('http://'+window.location.host+window.location.pathname,'_blank');
 }
-function copyBridgeUrl(){
+function modalCopy(){
   var url='power-bridge.local';
-  var el=document.getElementById('copy-bridge-url');
-  function done(){if(el){el.textContent='Kopiert ✓';el.style.color='#3fb950';setTimeout(function(){el.textContent=url;el.style.color='';},2000);}}
+  var btn=document.getElementById('btn-copy-modal');
+  var closeBtn=document.getElementById('btn-close-modal');
+  function done(){
+    btn.textContent='Kopiert ✓';btn.classList.add('done');
+    closeBtn.disabled=false;
+  }
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(url).then(done,done);
   } else {
@@ -197,6 +222,19 @@ function copyBridgeUrl(){
     try{document.execCommand('copy');}catch(e){}
     document.body.removeChild(t);done();
   }
+}
+function modalClose(){
+  document.getElementById('url-modal').classList.add('hidden');
+  // Erst jetzt Credentials absenden → AP bleibt bis hier oben
+  doConnect(pendingConnectSSID, pendingConnectPass);
+}
+function showUrlModal(){
+  document.getElementById('url-modal').classList.remove('hidden');
+  // Reset-Zustand
+  var btn=document.getElementById('btn-copy-modal');
+  var closeBtn=document.getElementById('btn-close-modal');
+  btn.textContent='Adresse kopieren';btn.classList.remove('done');
+  closeBtn.disabled=true;
 }
 function toggleManual(){
   var sec=document.getElementById('manual-section');sec.classList.toggle('open');
@@ -216,11 +254,6 @@ function doConnect(ssid,pass){
   }).then(function(r){return r.json();})
   .then(function(d){
     if(d.error){setStatus('status-error',escHtml(d.error));return;}
-    setStatus('status-connecting',
-      'Verbindung gespeichert &ndash; Bridge verbindet sich mit dem WLAN&hellip;<br><br>'+
-      'Öffne danach im Browser:<br>'+
-      '<span id="copy-bridge-url" class="copy-url" onclick="copyBridgeUrl()">power-bridge.local</span>'+
-      '<span style="font-size:.72rem;color:#484f58;margin-left:.4rem">(Tippen zum Kopieren)</span>');
     pollStart=Date.now();fetchFailures=0;lastStatus=null;
     pollTimer=setInterval(pollStatus,2500);
   })
