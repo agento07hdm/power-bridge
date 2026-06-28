@@ -210,7 +210,6 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <div class="row-err" id="err-po-ip"></div>
   <div class="row-edit" id="edit-po-ip">
     <div class="scan-state" id="po-scan-state"></div>
-    <ul class="scan-list" id="po-scan-list"></ul>
     <button class="btn-rescan" onclick="startPoScan()">Suche aktualisieren</button>
     <label class="edit-lbl">IP-Adresse manuell</label>
     <input class="edit-inp" type="text" id="inp-po-ip" placeholder="192.168.1.x" autocomplete="off">
@@ -733,11 +732,10 @@ function startPoScan() {
   if (poScanRunning) return;
   poScanRunning = true;
   var stEl = el('po-scan-state');
-  var lsEl = el('po-scan-list');
   stEl.textContent = 'Suche nach poweropti-Geräten…';
   el('dot-po-ip').classList.add('pulse');
-  lsEl.innerHTML = '';
-  lsEl.style.display = 'none';
+  el('po-scan-list-outer').innerHTML = '';
+  el('po-scan-outer').style.display = 'none';
   fetch('/setup/scan-poweropti')
     .then(function(r){ return r.json(); })
     .then(function(d){
@@ -792,16 +790,7 @@ function startPoScan() {
         outSt.textContent = devs.length + ' poweropti-Geräte gefunden – bitte auswählen:';
         el('po-scan-outer').style.display = '';
 
-        // Innenliste ebenfalls befüllen (falls Edit-Panel geöffnet wird)
-        devs.forEach(function(dev){
-          buildItem(dev, lsEl, function(ip, key){
-            el('inp-po-ip').value = ip;
-            selectedPoKey = key;
-            if (key) el('inp-api-key').value = key;
-          });
-        });
-        lsEl.style.display = 'block';
-        stEl.textContent = devs.length + ' Geräte gefunden – bitte auswählen:';
+        stEl.textContent = devs.length + ' Geräte gefunden – siehe Liste oben';
       }
     })
     .catch(function(){
