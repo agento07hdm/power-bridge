@@ -77,8 +77,8 @@ input:focus{outline:none;border-color:#388bfd}
     <input type="password" id="manual-password" placeholder="Passwort" autocomplete="current-password">
     <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">*</button>
   </div>
-  <a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenManualClick()">Verbinden</a>
-  <p class="connect-hint">Die Seite ist erst nach ca. 30&ndash;45 s erreichbar &ndash; neu laden falls sie nicht sofort &ouml;ffnet.</p>
+  <a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenManualClick()">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>
+  <p class="connect-hint">&Ouml;ffnen Sie power-bridge.local im Browser und warten Sie ca. 30 Sekunden, bis die power-bridge online ist und die Oberfl&auml;che geladen wurde.</p>
 </div>
 
 <div id="status-box" class="status"></div>
@@ -133,8 +133,8 @@ function renderNetworks(ssids){
           '<input type="password" id="inp-'+escAttr(s)+'" placeholder="Passwort" autocomplete="current-password">'+
           '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-'+escAttr(s)+'\',this)" title="Passwort anzeigen">*</button>'+
         '</div>'+
-        '<a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenClick(\''+escJs(s)+'\')">Verbinden</a>'+
-        '<p class="connect-hint">Die Seite ist erst nach ca. 30&ndash;45 s erreichbar &ndash; neu laden falls sie nicht sofort &ouml;ffnet.</p>'+
+        '<a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenClick(\''+escJs(s)+'\')">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>'+
+        '<p class="connect-hint">&Ouml;ffnen Sie power-bridge.local im Browser und warten Sie ca. 30 Sekunden, bis die power-bridge online ist und die Oberfl&auml;che geladen wurde.</p>'+
       '</div>';
     list.appendChild(li);
   });

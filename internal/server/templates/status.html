@@ -18,7 +18,6 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 /* Header */
 .hdr{display:flex;align-items:center;gap:.45rem;padding:.65rem .8rem .55rem;border-bottom:2px solid #21262d}
 .hdr-title{font-size:.88rem;font-weight:700;letter-spacing:.02em}
-.hdr-watt{margin-left:auto;font-size:.85rem;font-weight:600;padding-right:.1rem}
 
 /* Status dot */
 .rdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#484f58;flex-shrink:0;transition:background .3s}
@@ -74,8 +73,9 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 .scan-item-sub{display:block;font-size:.67rem;color:#6e7681;font-family:ui-monospace,monospace}
 .btn-rescan{background:none;border:1px solid #30363d;color:#8b949e;font-size:.7rem;padding:.18rem .45rem;border-radius:.25rem;cursor:pointer;margin-bottom:.25rem;transition:border-color .15s}
 .btn-rescan:hover{border-color:#388bfd;color:#388bfd}
-.scan-spin{display:inline-block;width:10px;height:10px;border:2px solid #30363d;border-top-color:#388bfd;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.35rem;flex-shrink:0}
 .po-status{font-size:.68rem;color:#484f58;margin-top:.05rem;display:block;font-family:system-ui,sans-serif;font-weight:400;white-space:nowrap}
+@keyframes dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+.rdot.pulse{animation:dot-pulse 1.1s ease-in-out infinite}
 
 /* Endpoints */
 .ep-list{list-style:none;margin:.15rem 0}
@@ -138,7 +138,6 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 <div class="hdr">
   <span class="hdr-title">power-bridge</span>
   <span class="rdot" id="hdr-dot"></span>
-  <span class="hdr-watt" id="hdr-watt" style="display:none"></span>
 </div>
 
 <!-- ── Zählerdaten (nur sichtbar wenn poweropti_ok) ── -->
@@ -192,6 +191,12 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
     </div>
   </div>
   <div class="sep-gap"></div><div class="sep"></div><div class="sep-gap"></div>
+</div>
+
+<!-- ── poweropti Außen-Scan-Liste (mehrere Geräte, kein Panel-Click nötig) ── -->
+<div id="po-scan-outer" style="display:none;padding:.4rem .8rem .55rem;border-bottom:1px solid #21262d;background:#0d1117">
+  <div style="font-size:.75rem;color:#8b949e;margin-bottom:.3rem" id="po-scan-outer-state"></div>
+  <ul class="scan-list" id="po-scan-list-outer" style="margin:0"></ul>
 </div>
 
 <!-- ── poweropti IP ── -->
@@ -454,6 +459,7 @@ Das Ger&auml;t wechselt danach in den Einrichtungsmodus.</div>
 // ================================================================
 var D = {};            // latest /api/status snapshot
 var activeRow = null;
+var poAutoScanDone = false; // Einmalig auto-scannen wenn keine IP konfiguriert
 var latestVersion = '';
 var updateAvailable = false;
 var updateApplied = false;
@@ -521,22 +527,9 @@ function render(d) {
 
   // Header
   var hDot = el('hdr-dot');
-  var hWatt = el('hdr-watt');
-  if (ap) {
-    setDot(hDot, 'grey');
-    hWatt.style.display = 'none';
-  } else if (d.poweropti_ok) {
-    setDot(hDot, 'green');
-    var w = d.watt || 0;
-    hWatt.textContent = w < 0
-      ? (-w).toFixed(0) + ' W Einspeisung'
-      : w.toFixed(0) + ' W Bezug';
-    hWatt.style.color = w < 0 ? '#3fb950' : '#e6edf3';
-    hWatt.style.display = '';
-  } else {
-    setDot(hDot, is401(d.last_error) ? 'yellow' : 'grey');
-    hWatt.style.display = 'none';
-  }
+  if (ap)                    { setDot(hDot, 'grey');   }
+  else if (d.poweropti_ok)   { setDot(hDot, 'green');  }
+  else { setDot(hDot, is401(d.last_error) ? 'yellow' : 'grey'); }
 
   // Meter section
   var ms = el('meter-section');
@@ -558,6 +551,11 @@ function render(d) {
   // poweropti IP
   txt('val-po-ip-addr', d.poweropti_ip || '–');
   renderPoIpDot(d);
+  // Einmalig auto-scannen wenn noch keine IP konfiguriert
+  if (!d.poweropti_ip && !poAutoScanDone && !poScanRunning) {
+    poAutoScanDone = true;
+    startPoScan();
+  }
   renderPoIpErr(d);
 
   // API-Key – show configured key
@@ -716,46 +714,78 @@ function startPoScan() {
   poScanRunning = true;
   var stEl = el('po-scan-state');
   var lsEl = el('po-scan-list');
-  stEl.innerHTML = '<span class="scan-spin"></span>Suche nach poweropti-Ger&auml;ten&hellip;';
+  stEl.textContent = 'Suche nach poweropti-Geräten…';
+  el('dot-po-ip').classList.add('pulse');
   lsEl.innerHTML = '';
   lsEl.style.display = 'none';
   fetch('/setup/scan-poweropti')
     .then(function(r){ return r.json(); })
     .then(function(d){
       poScanRunning = false;
+      el('dot-po-ip').classList.remove('pulse');
       var devs = d.devices || [];
       if (!devs.length) {
         stEl.textContent = 'Kein poweropti gefunden. Bitte IP manuell eingeben.';
         return;
       }
-      devs.forEach(function(dev){
+      function buildItem(dev, listEl, onSelect) {
         var key = dev.mac ? macToKey(dev.mac) : '';
         var li = document.createElement('li');
         li.className = 'scan-item';
         li.innerHTML = '<span>' + esc(dev.ip) + '</span>' +
-          (key ? '<span class="scan-item-sub">API-Key (Ger&auml;te-ID): ' + esc(key) + '</span>'
+          (key ? '<span class="scan-item-sub">API-Key: ' + esc(key) + '</span>'
                : '<span class="scan-item-sub" style="color:#d29922">MAC nicht ermittelt</span>');
         li.onclick = function(){
-          lsEl.querySelectorAll('.scan-item').forEach(function(x){ x.classList.remove('sel'); });
+          listEl.querySelectorAll('.scan-item').forEach(function(x){ x.classList.remove('sel'); });
           li.classList.add('sel');
-          el('inp-po-ip').value = dev.ip;
-          selectedPoKey = key;
-          if (key) el('inp-api-key').value = key;
+          onSelect(dev.ip, key);
         };
-        lsEl.appendChild(li);
-      });
-      lsEl.style.display = 'block';
+        listEl.appendChild(li);
+        return {key: key};
+      }
+
       if (devs.length === 1) {
-        // Einzelnes Gerät: automatisch auswählen und nach kurzer Verzögerung speichern
-        lsEl.querySelector('.scan-item').click();
+        // Einzelnes Gerät: Innenliste + automatisch speichern
+        var k = devs[0].mac ? macToKey(devs[0].mac) : '';
+        el('inp-po-ip').value = devs[0].ip;
+        selectedPoKey = k;
+        if (k) el('inp-api-key').value = k;
+        lsEl.style.display = 'none';
         stEl.textContent = '1 Gerät gefunden – wird gespeichert…';
+        el('po-scan-outer').style.display = 'none';
         setTimeout(function(){ savePoIp(); }, 1200);
       } else {
+        // Mehrere Geräte: Außenliste direkt anzeigen (kein Panel-Click nötig)
+        var outEl = el('po-scan-list-outer');
+        var outSt = el('po-scan-outer-state');
+        outEl.innerHTML = '';
+        devs.forEach(function(dev){
+          buildItem(dev, outEl, function(ip, key){
+            el('inp-po-ip').value = ip;
+            selectedPoKey = key;
+            if (key) el('inp-api-key').value = key;
+            el('po-scan-outer').style.display = 'none';
+            savePoIp();
+          });
+        });
+        outSt.textContent = devs.length + ' poweropti-Geräte gefunden – bitte auswählen:';
+        el('po-scan-outer').style.display = '';
+
+        // Innenliste ebenfalls befüllen (falls Edit-Panel geöffnet wird)
+        devs.forEach(function(dev){
+          buildItem(dev, lsEl, function(ip, key){
+            el('inp-po-ip').value = ip;
+            selectedPoKey = key;
+            if (key) el('inp-api-key').value = key;
+          });
+        });
+        lsEl.style.display = 'block';
         stEl.textContent = devs.length + ' Geräte gefunden – bitte auswählen:';
       }
     })
     .catch(function(){
       poScanRunning = false;
+      el('dot-po-ip').classList.remove('pulse');
       el('po-scan-state').textContent = 'Suche fehlgeschlagen.';
     });
 }
