@@ -92,12 +92,17 @@ input:focus{outline:none;border-color:#388bfd}
 
 <div id="status-box" class="status"></div>
 
-<!-- Modal: URL kopieren → startet Verbindung -->
+<!-- Modal: URL kopieren / weiterleiten → startet Verbindung -->
 <div class="modal-ov hidden" id="url-modal">
-  <div class="modal-card">
+  <div class="modal-card" id="modal-card-android">
     <p class="modal-title">Adresse kopieren und nach ca. 30 s im Browser öffnen:</p>
     <span class="modal-url">http://power-bridge.local</span>
     <button type="button" class="btn-copy-modal" id="btn-copy-modal" onclick="modalCopy()">Adresse kopieren &amp; Verbinden</button>
+  </div>
+  <div class="modal-card hidden" id="modal-card-ios">
+    <p class="modal-title">Safari öffnet sich mit der power-bridge.<br>Bitte ca. 30 s warten – die Seite lädt sobald die Bridge verbunden ist.</p>
+    <span class="modal-url">http://power-bridge.local</span>
+    <button type="button" class="btn-copy-modal" id="btn-ios-modal" onclick="modalIOS()">In Safari öffnen &amp; Verbinden</button>
   </div>
 </div>
 
@@ -212,12 +217,28 @@ function modalCopy(){
     document.body.removeChild(t);done();
   }
 }
+var isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 function showUrlModal(){
-  var btn=document.getElementById('btn-copy-modal');
-  btn.textContent='Adresse kopieren & Verbinden';
-  btn.classList.remove('done');
-  btn.disabled=false;
+  // Richtiges Panel je nach Plattform zeigen
+  document.getElementById('modal-card-android').classList.toggle('hidden', isIOS);
+  document.getElementById('modal-card-ios').classList.toggle('hidden', !isIOS);
+  if(!isIOS){
+    var btn=document.getElementById('btn-copy-modal');
+    btn.textContent='Adresse kopieren & Verbinden';
+    btn.classList.remove('done');
+    btn.disabled=false;
+  }
   document.getElementById('url-modal').classList.remove('hidden');
+}
+function modalIOS(){
+  // Synchron öffnen (im Click-Handler) → iOS lässt window.open zu
+  window.open('http://power-bridge.local','_blank');
+  var btn=document.getElementById('btn-ios-modal');
+  btn.textContent='Safari geöffnet – Verbindung wird gestartet…';
+  btn.disabled=true;
+  doConnect(pendingConnectSSID,pendingConnectPass);
+  setTimeout(function(){ document.getElementById('url-modal').classList.add('hidden'); },2000);
 }
 function toggleManual(){
   var sec=document.getElementById('manual-section');sec.classList.toggle('open');
