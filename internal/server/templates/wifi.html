@@ -52,13 +52,23 @@ input:focus{outline:none;border-color:#388bfd}
 .status-connecting{background:#0d2136;border:1px solid #1d4ed8;color:#93c5fd}
 .status-success{background:#0a1f10;border:1px solid #238636;color:#3fb950}
 .status-error{background:#1a0a0a;border:1px solid #8b1a1a;color:#f85149}
-.open-link{display:inline-block;background:#1f6feb;color:#fff;padding:.45rem .9rem;border-radius:.3rem;text-decoration:none;font-size:.85rem;font-weight:500;margin:.55rem 0 .35rem}
 .connect-hint{font-size:.73rem;color:#484f58;margin-top:.2rem;line-height:1.5}
+.browser-bar{background:#161b22;border:1px solid #30363d;border-radius:.4rem;padding:.6rem .75rem;margin-bottom:1rem;display:flex;align-items:center;gap:.65rem}
+.browser-bar-text{flex:1;font-size:.78rem;color:#8b949e;line-height:1.4}
+.btn-browser{background:#21262d;border:1px solid #388bfd;color:#388bfd;font-size:.78rem;font-weight:600;padding:.38rem .75rem;border-radius:.3rem;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.btn-browser:hover{background:#1f6feb;color:#fff}
+.copy-url{display:inline-block;background:#21262d;border:1px solid #30363d;border-radius:.25rem;padding:.15rem .45rem;font-family:monospace;font-size:.82rem;cursor:pointer;color:#58a6ff;margin:.3rem 0}
+.copy-url:active{background:#388bfd;color:#fff}
 </style>
 </head>
 <body>
 <h1>power-bridge</h1>
 <p class="sub">Verbinde die Bridge mit deinem Heim-WLAN.</p>
+
+<div class="browser-bar">
+  <span class="browser-bar-text">Für bessere Weiterleitung nach dem Verbinden:</span>
+  <button type="button" class="btn-browser" onclick="openInRealBrowser()">Im Browser öffnen ›</button>
+</div>
 
 <div class="scan-row">
   <span class="scan-lbl">WLAN-Netzwerke</span>
@@ -77,8 +87,7 @@ input:focus{outline:none;border-color:#388bfd}
     <input type="password" id="manual-password" placeholder="Passwort" autocomplete="current-password">
     <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">*</button>
   </div>
-  <a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenManualClick(event)">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>
-  <p class="connect-hint">&Ouml;ffnen Sie power-bridge.local im Browser und warten Sie ca. 30 Sekunden, bis die power-bridge online ist und die Oberfl&auml;che geladen wurde.</p>
+  <button type="button" class="btn btn-p" onclick="connectManual()">Verbinden &ndash; danach power-bridge.local im Browser &ouml;ffnen</button>
 </div>
 
 <div id="status-box" class="status"></div>
@@ -133,8 +142,7 @@ function renderNetworks(ssids){
           '<input type="password" id="inp-'+escAttr(s)+'" placeholder="Passwort" autocomplete="current-password">'+
           '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-'+escAttr(s)+'\',this)" title="Passwort anzeigen">*</button>'+
         '</div>'+
-        '<a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenClick(event,\''+escJs(s)+'\')">Verbinden &amp; zu power&#8209;bridge.local weiterleiten</a>'+
-        '<p class="connect-hint">&Ouml;ffnen Sie power-bridge.local im Browser und warten Sie ca. 30 Sekunden, bis die power-bridge online ist und die Oberfl&auml;che geladen wurde.</p>'+
+        '<button type="button" class="btn btn-p" onclick="connectSelected(\''+escJs(s)+'\')">Verbinden &ndash; danach power-bridge.local im Browser &ouml;ffnen</button>'+
       '</div>';
     list.appendChild(li);
   });
@@ -169,31 +177,26 @@ function connectManual(){
   if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return;}
   doConnect(ssid,pass);
 }
-// Neue Handler für <a>-Verbinden-Buttons
-function openInBrowser(aEl){
+function openInRealBrowser(){
+  var url='http://'+window.location.host+window.location.pathname;
   var isAndroid=/android/i.test(navigator.userAgent);
   if(isAndroid){
-    // Intent-URL öffnet den echten Standard-Browser auf Android
-    aEl.href='intent://power-bridge.local#Intent;scheme=http;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
-    aEl.removeAttribute('target');
+    window.location.href='intent://'+window.location.host+'/#Intent;scheme=http;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
   } else {
-    // iOS/Desktop: normales target="_blank" öffnet Safari/Browser
-    aEl.href='http://power-bridge.local';
-    aEl.target='_blank';
+    window.open(url,'_blank');
   }
 }
-function onVerbindenClick(e,ssid){
-  var inp=document.getElementById('inp-'+ssid);
-  doConnect(ssid, inp?inp.value:'');
-  openInBrowser(e.currentTarget||e.target);
-  return true;
-}
-function onVerbindenManualClick(e){
-  var ssid=document.getElementById('manual-ssid').value.trim();
-  if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return false;}
-  doConnect(ssid, document.getElementById('manual-password').value);
-  openInBrowser(e.currentTarget||e.target);
-  return true;
+function copyBridgeUrl(){
+  var url='power-bridge.local';
+  var el=document.getElementById('copy-bridge-url');
+  function done(){if(el){el.textContent='Kopiert ✓';el.style.color='#3fb950';setTimeout(function(){el.textContent=url;el.style.color='';},2000);}}
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done,done);
+  } else {
+    var t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();
+    try{document.execCommand('copy');}catch(e){}
+    document.body.removeChild(t);done();
+  }
 }
 function toggleManual(){
   var sec=document.getElementById('manual-section');sec.classList.toggle('open');
@@ -213,7 +216,11 @@ function doConnect(ssid,pass){
   }).then(function(r){return r.json();})
   .then(function(d){
     if(d.error){setStatus('status-error',escHtml(d.error));return;}
-    setStatus('status-connecting','Verbindung gespeichert &ndash; Bridge verbindet sich mit dem WLAN&hellip;');
+    setStatus('status-connecting',
+      'Verbindung gespeichert &ndash; Bridge verbindet sich mit dem WLAN&hellip;<br><br>'+
+      'Öffne danach im Browser:<br>'+
+      '<span id="copy-bridge-url" class="copy-url" onclick="copyBridgeUrl()">power-bridge.local</span>'+
+      '<span style="font-size:.72rem;color:#484f58;margin-left:.4rem">(Tippen zum Kopieren)</span>');
     pollStart=Date.now();fetchFailures=0;lastStatus=null;
     pollTimer=setInterval(pollStatus,2500);
   })
