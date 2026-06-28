@@ -62,8 +62,10 @@ details[open] summary::before{content:'-'}
 .dev-item:hover{background:#161b22}
 .dev-item.sel{background:#0d2136}
 .dev-dot{width:7px;height:7px;border-radius:50%;background:#484f58;flex-shrink:0;transition:background .3s}
-.dev-ip{font-family:ui-monospace,monospace;flex:1}
-.dev-watt{font-size:.72rem;color:#8b949e;text-align:right}
+.dev-info{flex:1;display:flex;flex-direction:column;gap:.05rem}
+.dev-ip{font-family:ui-monospace,monospace;font-size:.78rem}
+.dev-mac{font-family:ui-monospace,monospace;font-size:.65rem;color:#6e7681}
+.dev-watt{font-size:.72rem;color:#8b949e;text-align:right;align-self:center}
 </style>
 </head>
 <body>
@@ -153,7 +155,10 @@ details[open] summary::before{content:'-'}
 
       <!-- poweropti -->
       <div class="sec-hdr" style="margin-top:.15rem" data-i18n="section_poweropti">poweropti</div>
-      <div style="font-size:.7rem;color:#8b949e;margin-bottom:.2rem" id="po-scan-state"></div>
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.15rem">
+        <span style="font-size:.7rem;color:#8b949e;flex:1" id="po-scan-state"></span>
+        <button type="button" class="btn" style="font-size:.68rem;padding:.18rem .45rem;margin:0" onclick="poScan()" data-i18n="btn_rescan">Suche aktualisieren</button>
+      </div>
       <ul class="dev-list" id="po-dev-list" style="display:none"></ul>
       <details id="po-manual-det" style="margin:.2rem 0">
         <summary data-i18n="po_manual">Manuell eingeben</summary>
@@ -315,7 +320,9 @@ var T={de:{
   forget_confirm:'WLAN-Zugangsdaten löschen? Das Gerät wechselt in den Einrichtungsmodus.',
   forget_ap_info:'AP-Modus aktiv – verbinde mit "power-bridge" und öffne http://192.168.4.1',
   connecting:'Verbinde...',wifi_ap:'AP-Modus',wifi_connecting:'Verbindet...',wifi_none:'Nicht verbunden',
-  po_ok:'Verbunden',po_err:'Nicht erreichbar',consumed:'Bezug',delivered:'Einspeisung',
+  po_ok:'Verbunden',po_err:'Nicht erreichbar',po_auth_err:'Erreichbar – API-Key ungültig',
+  status_warn_auth:'poweropti: API-Key prüfen',
+  consumed:'Bezug',delivered:'Einspeisung',
   phase_equal:'Gleich (L1=L2=L3)',phase_l1:'Alles auf L1',
   restart_confirm:'Raspberry Pi wirklich neu starten?',
   update_confirm:'Update jetzt installieren? Das Gerät startet kurz neu.',
@@ -350,7 +357,9 @@ var T={de:{
   forget_confirm:'Delete WiFi credentials? The device will switch to setup mode.',
   forget_ap_info:'AP mode active – connect to "power-bridge" and open http://192.168.4.1',
   connecting:'Connecting...',wifi_ap:'AP mode',wifi_connecting:'Connecting...',wifi_none:'Not connected',
-  po_ok:'Connected',po_err:'Unreachable',consumed:'Consumption',delivered:'Feed-in',
+  po_ok:'Connected',po_err:'Unreachable',po_auth_err:'Reachable – API key invalid',
+  status_warn_auth:'poweropti: check API key',
+  consumed:'Consumption',delivered:'Feed-in',
   phase_equal:'Equal (L1=L2=L3)',phase_l1:'All on L1',
   restart_confirm:'Really reboot the Raspberry Pi?',
   update_confirm:'Install update now? The device will restart briefly.',
@@ -399,9 +408,13 @@ var apScanDone=false;var lastStatus=null;
   fetch('/api/status').then(function(r){return r.json();}).then(function(d){
     lastStatus=d;
 
+    // Classify poweropti error
+    var is401=d.last_error&&(d.last_error.indexOf('401')!==-1||d.last_error.indexOf('Unauthorized')!==-1);
+
     // Header status dot
     var dot=document.getElementById('sdot');var stxt=document.getElementById('stxt');
     if(d.is_ap_mode){dot.className='sdot warn';stxt.textContent=t('status_err');}
+    else if(!d.poweropti_ok&&is401){dot.className='sdot warn';stxt.textContent=t('status_warn_auth');}
     else if(!d.poweropti_ok){dot.className='sdot warn';stxt.textContent=t('status_warn');}
     else{dot.className='sdot ok';stxt.textContent=t('status_ok');}
 
@@ -425,12 +438,21 @@ var apScanDone=false;var lastStatus=null;
     // poweropti status
     var pdot=document.getElementById('po-dot');var ptxt=document.getElementById('po-txt');
     if(d.poweropti_ok){pdot.className='sdot-row ok';ptxt.textContent=t('po_ok');}
+    else if(is401){pdot.className='sdot-row warn';ptxt.textContent=t('po_auth_err');}
     else{pdot.className='sdot-row err';ptxt.textContent=t('po_err');}
     var errRow=document.getElementById('err-row');
     if(d.last_error){
-      document.getElementById('err-txt').textContent=d.last_error.slice(0,120);
+      document.getElementById('err-txt').textContent=translateError(d.last_error);
       errRow.style.display='flex';
     } else{errRow.style.display='none';}
+
+    // Auto-fill API key from ARP lookup if key field is still empty
+    if(d.poweropti_mac){
+      var keyField=document.getElementById('po-key-inp');
+      if(keyField&&!keyField.value){
+        keyField.value=d.poweropti_mac.replace(/:/g,'').toLowerCase();
+      }
+    }
     document.getElementById('po-ip-disp').textContent=d.poweropti_ip||'–';
 
     // WLAN status
@@ -477,15 +499,9 @@ var apScanDone=false;var lastStatus=null;
   setTimeout(poll,3000);
 })();
 
-// poweropti device scan (runs on settings open)
+// poweropti device scan
 var selPoIP='{{.Cfg.PoweroptiIP}}';var selPoKey='{{.Cfg.PoweroptiAPIKey}}';
-window.addEventListener('load',function(){
-  var cfgIP=document.getElementById('po-ip-inp').value;
-  if(cfgIP){
-    // Already configured: auto-open manual section, don't scan
-    document.getElementById('po-manual-det').open=true;
-    return;
-  }
+function poScan(){
   var state=document.getElementById('po-scan-state');
   state.textContent=t('po_scanning');
   fetch('/setup/scan-poweropti').then(function(r){return r.json();}).then(function(d){
@@ -494,6 +510,10 @@ window.addEventListener('load',function(){
     state.textContent='';
     document.getElementById('po-manual-det').open=true;
   });
+}
+window.addEventListener('load',function(){
+  // Always scan – even if IP is already known, to refresh MAC / auto-fill API key
+  poScan();
 });
 
 function renderDevList(devices){
@@ -511,19 +531,35 @@ function renderDevList(devices){
     li.className='dev-item';
     li.setAttribute('data-ip',dev.ip);
     li.innerHTML='<span class="dev-dot" id="dot-'+escAttr(dev.ip)+'"></span>'+
-      '<span class="dev-ip">'+escHtml(dev.ip)+'</span>'+
+      '<span class="dev-info">'+
+        '<span class="dev-ip">'+escHtml(dev.ip)+'</span>'+
+        (dev.mac?'<span class="dev-mac">'+escHtml(dev.mac)+'</span>':'')+
+      '</span>'+
       '<span class="dev-watt" id="watt-'+escAttr(dev.ip)+'"></span>';
     li.onclick=function(){selectDev(dev.ip,key);};
     list.appendChild(li);
   });
   list.style.display='block';
-  if(devices.length===1){
-    var k=devices[0].mac?devices[0].mac.replace(/:/g,'').toLowerCase():'';
-    selectDev(devices[0].ip,k);
-    state.textContent=t('po_auto');
-  } else {
-    state.textContent=t('po_select');
-    if(selPoIP){selectDev(selPoIP,selPoKey);}
+  // Auto-select: match configured IP, or pick single device
+  var matched=false;
+  if(selPoIP){
+    for(var i=0;i<devices.length;i++){
+      if(devices[i].ip===selPoIP){
+        var k=devices[i].mac?devices[i].mac.replace(/:/g,'').toLowerCase():'';
+        selectDev(devices[i].ip,k);
+        state.textContent=devices.length===1?t('po_auto'):t('po_select');
+        matched=true;break;
+      }
+    }
+  }
+  if(!matched){
+    if(devices.length===1){
+      var k=devices[0].mac?devices[0].mac.replace(/:/g,'').toLowerCase():'';
+      selectDev(devices[0].ip,k);
+      state.textContent=t('po_auto');
+    } else {
+      state.textContent=t('po_select');
+    }
   }
 }
 function selectDev(ip,key){
@@ -685,6 +721,19 @@ function doFactoryReset(){
   });
 }
 
+function translateError(msg){
+  if(!msg)return'';
+  if(msg.indexOf('401')!==-1||msg.indexOf('Unauthorized')!==-1)
+    return'API-Key ungültig oder lokale Schnittstelle nicht freigeschalten (poweropti-Einstellungen → Lokale API aktivieren)';
+  if(msg.indexOf('not configured')!==-1)return'poweropti IP nicht konfiguriert';
+  if(msg.indexOf('connection refused')!==-1)return'Verbindung abgelehnt – läuft der poweropti?';
+  if(msg.indexOf('timeout')!==-1||msg.indexOf('deadline exceeded')!==-1)return'Zeitüberschreitung – poweropti antwortet nicht';
+  if(msg.indexOf('no such host')!==-1||msg.indexOf('dial tcp')!==-1)return'Host nicht erreichbar – IP-Adresse prüfen';
+  if(msg.indexOf('invalid response')!==-1||msg.indexOf('decode')!==-1)return'Ungültige Antwort vom poweropti';
+  if(msg.indexOf('timestamp is zero')!==-1)return'poweropti liefert keine gültigen Daten (Zähler angeschlossen?)';
+  if(msg.indexOf('missing OBIS')!==-1)return'poweropti-Antwort unvollständig – Zählertyp prüfen';
+  return msg;
+}
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escAttr(s){return escHtml(s).replace(/'/g,'&#39;');}
 
