@@ -53,6 +53,7 @@ input:focus{outline:none;border-color:#388bfd}
 .status-success{background:#0a1f10;border:1px solid #238636;color:#3fb950}
 .status-error{background:#1a0a0a;border:1px solid #8b1a1a;color:#f85149}
 .open-link{display:inline-block;background:#1f6feb;color:#fff;padding:.45rem .9rem;border-radius:.3rem;text-decoration:none;font-size:.85rem;font-weight:500;margin:.55rem 0 .35rem}
+.connect-hint{font-size:.73rem;color:#484f58;margin-top:.2rem;line-height:1.5}
 </style>
 </head>
 <body>
@@ -76,7 +77,8 @@ input:focus{outline:none;border-color:#388bfd}
     <input type="password" id="manual-password" placeholder="Passwort" autocomplete="current-password">
     <button type="button" class="pw-toggle" onclick="togglePw('manual-password',this)" title="Passwort anzeigen">*</button>
   </div>
-  <button type="button" class="btn btn-p" onclick="connectManual()">Verbinden</button>
+  <a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenManualClick()">Verbinden</a>
+  <p class="connect-hint">Die Seite ist erst nach ca. 30&ndash;45 s erreichbar &ndash; neu laden falls sie nicht sofort &ouml;ffnet.</p>
 </div>
 
 <div id="status-box" class="status"></div>
@@ -131,7 +133,8 @@ function renderNetworks(ssids){
           '<input type="password" id="inp-'+escAttr(s)+'" placeholder="Passwort" autocomplete="current-password">'+
           '<button type="button" class="pw-toggle" onclick="togglePw(\'inp-'+escAttr(s)+'\',this)" title="Passwort anzeigen">*</button>'+
         '</div>'+
-        '<button type="button" class="btn btn-p" onclick="connectSelected(\''+escJs(s)+'\')">Verbinden</button>'+
+        '<a class="btn btn-p" href="http://power-bridge.local" target="_blank" onclick="return onVerbindenClick(\''+escJs(s)+'\')">Verbinden</a>'+
+        '<p class="connect-hint">Die Seite ist erst nach ca. 30&ndash;45 s erreichbar &ndash; neu laden falls sie nicht sofort &ouml;ffnet.</p>'+
       '</div>';
     list.appendChild(li);
   });
@@ -166,6 +169,18 @@ function connectManual(){
   if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return;}
   doConnect(ssid,pass);
 }
+// Neue Handler für <a>-Verbinden-Buttons
+function onVerbindenClick(ssid){
+  var inp=document.getElementById('inp-'+ssid);
+  doConnect(ssid, inp?inp.value:'');
+  return true; // Link-Navigation zulassen → öffnet power-bridge.local im echten Browser
+}
+function onVerbindenManualClick(){
+  var ssid=document.getElementById('manual-ssid').value.trim();
+  if(!ssid){setStatus('status-error','Bitte einen Netzwerknamen eingeben.');return false;}
+  doConnect(ssid, document.getElementById('manual-password').value);
+  return true;
+}
 function toggleManual(){
   var sec=document.getElementById('manual-section');sec.classList.toggle('open');
   if(sec.classList.contains('open')){document.getElementById('manual-ssid').focus();}
@@ -184,10 +199,7 @@ function doConnect(ssid,pass){
   }).then(function(r){return r.json();})
   .then(function(d){
     if(d.error){setStatus('status-error',escHtml(d.error));return;}
-    setStatus('status-connecting',
-      'Verbindung gespeichert. Die Bridge wählt sich jetzt ins WLAN ein.<br><br>'+
-      '<a href="http://power-bridge.local" target="_blank" class="open-link">power-bridge.local öffnen ›</a><br>'+
-      '<span style="font-size:.76rem;color:#6e7681">Tippe auf den Link &ndash; die Seite lädt automatisch sobald die Bridge verbunden ist.</span>');
+    setStatus('status-connecting','Verbindung gespeichert &ndash; Bridge verbindet sich mit dem WLAN&hellip;');
     pollStart=Date.now();fetchFailures=0;lastStatus=null;
     pollTimer=setInterval(pollStatus,2500);
   })

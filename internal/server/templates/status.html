@@ -74,6 +74,8 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 .scan-item-sub{display:block;font-size:.67rem;color:#6e7681;font-family:ui-monospace,monospace}
 .btn-rescan{background:none;border:1px solid #30363d;color:#8b949e;font-size:.7rem;padding:.18rem .45rem;border-radius:.25rem;cursor:pointer;margin-bottom:.25rem;transition:border-color .15s}
 .btn-rescan:hover{border-color:#388bfd;color:#388bfd}
+.scan-spin{display:inline-block;width:10px;height:10px;border:2px solid #30363d;border-top-color:#388bfd;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:.35rem;flex-shrink:0}
+.po-status{font-size:.68rem;color:#484f58;margin-top:.05rem;display:block;font-family:system-ui,sans-serif;font-weight:400;white-space:nowrap}
 
 /* Endpoints */
 .ep-list{list-style:none;margin:.15rem 0}
@@ -196,7 +198,10 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 <div class="row-wrap" id="wrap-po-ip">
   <div class="row-main clickable" onclick="toggleRow('po-ip')">
     <span class="row-lbl">poweropti IP</span>
-    <span class="row-val row-mono" id="val-po-ip">&#x2013;</span>
+    <span class="row-val row-mono" id="val-po-ip" style="display:flex;flex-direction:column;align-items:flex-end">
+      <span id="val-po-ip-addr">&#x2013;</span>
+      <span class="po-status" id="val-po-status"></span>
+    </span>
     <span class="rdot" id="dot-po-ip"></span>
     <span class="row-arrow" id="arrow-po-ip">&#x203a;</span>
   </div>
@@ -551,7 +556,7 @@ function render(d) {
   }
 
   // poweropti IP
-  txt('val-po-ip', d.poweropti_ip || '–');
+  txt('val-po-ip-addr', d.poweropti_ip || '–');
   renderPoIpDot(d);
   renderPoIpErr(d);
 
@@ -621,11 +626,14 @@ function render(d) {
 
 function renderPoIpDot(d) {
   var e = el('dot-po-ip');
-  if (d.poweropti_ok)          { setDot(e,'green');  return; }
-  if (!d.last_error)           { setDot(e,'grey');   return; }
-  if (is401(d.last_error))     { setDot(e,'yellow'); return; }
-  if (isNetErr(d.last_error))  { setDot(e,'red');    return; }
-  setDot(e,'yellow'); // reachable but HTTP error
+  var s = el('val-po-status');
+  function st(txt) { if (s) s.textContent = txt; }
+  if (d.poweropti_ok)          { setDot(e,'green');  st('Verbunden');        return; }
+  if (!d.poweropti_ip)         { setDot(e,'grey');   st('');                  return; }
+  if (!d.last_error)           { setDot(e,'grey');   st('Verbinde…');   return; }
+  if (is401(d.last_error))     { setDot(e,'yellow'); st('API-Key falsch');   return; }
+  if (isNetErr(d.last_error))  { setDot(e,'red');    st('Nicht erreichbar'); return; }
+  setDot(e,'yellow'); st('Fehler');
 }
 function renderPoIpErr(d) {
   var e = el('err-po-ip');
@@ -708,7 +716,7 @@ function startPoScan() {
   poScanRunning = true;
   var stEl = el('po-scan-state');
   var lsEl = el('po-scan-list');
-  stEl.textContent = 'Suche nach poweropti-Geräten…';
+  stEl.innerHTML = '<span class="scan-spin"></span>Suche nach poweropti-Ger&auml;ten&hellip;';
   lsEl.innerHTML = '';
   lsEl.style.display = 'none';
   fetch('/setup/scan-poweropti')
@@ -716,14 +724,16 @@ function startPoScan() {
     .then(function(d){
       poScanRunning = false;
       var devs = d.devices || [];
-      if (!devs.length) { stEl.textContent = 'Kein poweropti gefunden. Bitte IP manuell eingeben.'; return; }
-      stEl.textContent = devs.length === 1 ? 'Gerät gefunden:' : devs.length + ' Geräte gefunden:';
+      if (!devs.length) {
+        stEl.textContent = 'Kein poweropti gefunden. Bitte IP manuell eingeben.';
+        return;
+      }
       devs.forEach(function(dev){
         var key = dev.mac ? macToKey(dev.mac) : '';
         var li = document.createElement('li');
         li.className = 'scan-item';
         li.innerHTML = '<span>' + esc(dev.ip) + '</span>' +
-          (key ? '<span class="scan-item-sub">API-Key (Geräte-ID): ' + esc(key) + '</span>'
+          (key ? '<span class="scan-item-sub">API-Key (Ger&auml;te-ID): ' + esc(key) + '</span>'
                : '<span class="scan-item-sub" style="color:#d29922">MAC nicht ermittelt</span>');
         li.onclick = function(){
           lsEl.querySelectorAll('.scan-item').forEach(function(x){ x.classList.remove('sel'); });
@@ -735,7 +745,14 @@ function startPoScan() {
         lsEl.appendChild(li);
       });
       lsEl.style.display = 'block';
-      if (devs.length === 1) lsEl.querySelector('.scan-item').click();
+      if (devs.length === 1) {
+        // Einzelnes Gerät: automatisch auswählen und nach kurzer Verzögerung speichern
+        lsEl.querySelector('.scan-item').click();
+        stEl.textContent = '1 Gerät gefunden – wird gespeichert…';
+        setTimeout(function(){ savePoIp(); }, 1200);
+      } else {
+        stEl.textContent = devs.length + ' Geräte gefunden – bitte auswählen:';
+      }
     })
     .catch(function(){
       poScanRunning = false;
