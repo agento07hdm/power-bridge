@@ -46,9 +46,6 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 /* invisible placeholders to keep all rows aligned */
 .row-ph{visibility:hidden}
 
-/* Error sub-row */
-.row-err{display:none;padding:.22rem .8rem .3rem 8.9rem;font-size:.72rem;color:#f85149;line-height:1.5;background:#0d1117}
-
 /* Edit panel */
 .row-edit{display:none;padding:.5rem .8rem .65rem;background:#0d1117;border-top:1px solid #21262d}
 .edit-lbl{font-size:.7rem;color:#8b949e;display:block;margin:.4rem 0 .12rem}
@@ -63,8 +60,16 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 .btn-cancel{padding:.35rem .75rem;background:none;border:1px solid #30363d;border-radius:.3rem;font-size:.8rem;color:#8b949e;cursor:pointer}
 .btn-cancel:hover{border-color:#8b949e}
 
+/* Status text inside edit panels – reflects the dot's current state in words */
+.stat-msg{font-size:.72rem;line-height:1.55;margin:0 0 .55rem;color:#8b949e}
+.stat-msg.green{color:#3fb950}
+.stat-msg.yellow{color:#d29922}
+.stat-msg.red{color:#f85149}
+
 /* Scan lists */
 .scan-state{font-size:.72rem;color:#8b949e;min-height:1rem;margin:.25rem 0 .1rem}
+.scan-item{display:flex;align-items:center;gap:.4rem}
+.scan-item-txt{flex:1;min-width:0}
 .scan-list{list-style:none;border:1px solid #30363d;border-radius:.3rem;overflow:hidden;margin:.15rem 0 .35rem;display:none}
 .scan-item{padding:.3rem .6rem;cursor:pointer;border-bottom:1px solid #21262d;font-size:.8rem;transition:background .1s}
 .scan-item:last-child{border-bottom:none}
@@ -207,8 +212,8 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
     <span class="rdot" id="dot-po-ip"></span>
     <span class="row-arrow" id="arrow-po-ip">&#x203a;</span>
   </div>
-  <div class="row-err" id="err-po-ip"></div>
   <div class="row-edit" id="edit-po-ip">
+    <div class="stat-msg" id="po-ip-status"></div>
     <div class="scan-state" id="po-scan-state"></div>
     <button class="btn-rescan" onclick="startPoScan()">Suche aktualisieren</button>
     <label class="edit-lbl">IP-Adresse manuell</label>
@@ -228,8 +233,8 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
     <span class="rdot" id="dot-api-key"></span>
     <span class="row-arrow" id="arrow-api-key">&#x203a;</span>
   </div>
-  <div class="row-err" id="err-api-key"></div>
   <div class="row-edit" id="edit-api-key">
+    <div class="stat-msg" id="api-key-status"></div>
     <label class="edit-lbl">poweropti-ID (API-Key)</label>
     <input class="edit-inp" type="text" id="inp-api-key" placeholder="aabbccddeeff" autocomplete="off" maxlength="12">
     <p class="edit-hint">12-stellige Ger&auml;te-ID des poweropti (MAC-Adresse ohne Doppelpunkte).<br>Manche Ger&auml;te akzeptieren auch: null</p>
@@ -552,12 +557,10 @@ function render(d) {
     poAutoScanDone = true;
     startPoScan();
   }
-  renderPoIpErr(d);
 
   // API-Key – show configured key
   txt('val-api-key', cfg.apiKey || '–');
   renderApiKeyDot(d);
-  renderApiKeyErr(d);
   // Auto-fill edit input when empty + MAC known
   if (d.poweropti_mac && !el('inp-api-key').value) {
     el('inp-api-key').value = macToKey(d.poweropti_mac);
@@ -618,62 +621,75 @@ function render(d) {
   }
 }
 
+// poIpState / apiKeyState compute { cls, pulse, msg } describing what the two
+// dots under "poweropti IP" and "API-Key" should show. The two are kept
+// deliberately independent:
+//   - poweropti IP  → pure network reachability. Green as soon as ANY HTTP
+//     response comes back from the device (even 401/404/500) – the network
+//     path is fine at that point. Red only for genuine connectivity failures
+//     (dial/timeout/connection refused).
+//   - API-Key       → auth + payload validity. Only meaningful once the IP
+//     is reachable; red for 401, yellow for other application-level errors
+//     (bad status code, malformed payload, missing/invalid readings).
+function poIpState(d) {
+  if (!d.poweropti_ip) {
+    return { cls:'grey', msg:'Keine poweropti-IP hinterlegt. Bitte Suche starten oder IP manuell eingeben.' };
+  }
+  if (!d.last_error) {
+    if (d.poweropti_ok) {
+      return { cls:'green', msg:'poweropti ist unter dieser IP erreichbar und liefert Messwerte.' };
+    }
+    return { cls:'yellow', pulse:true, msg:'Erster Verbindungsversuch läuft – power-bridge wartet auf die erste Antwort von poweropti unter dieser IP.' };
+  }
+  if (isNetErr(d.last_error)) {
+    return { cls:'red', msg:'poweropti antwortet nicht unter ' + d.poweropti_ip + '. ' + xlat(d.last_error) };
+  }
+  // Any other error (401, unerwarteter Status, kaputte Antwort) heißt: das
+  // Gerät hat geantwortet – das Netzwerk/die IP ist also in Ordnung.
+  var hint = is401(d.last_error)
+    ? 'Der API-Key wird jedoch abgelehnt – siehe Status bei "API-Key" unten.'
+    : 'Es gibt jedoch ein Problem mit der Antwort – siehe Status bei "API-Key" unten.';
+  return { cls:'green', msg:'poweropti ist unter dieser IP erreichbar. ' + hint };
+}
+function apiKeyState(d) {
+  if (!d.poweropti_ip) {
+    return { cls:'grey', msg:'Kann erst geprüft werden, sobald eine poweropti-IP hinterlegt ist.' };
+  }
+  if (d.poweropti_ok) {
+    return { cls:'green', msg:'API-Key ist korrekt – Messdaten werden erfolgreich abgerufen.' };
+  }
+  if (!d.last_error) {
+    return { cls:'grey', msg:'Noch keine Antwort erhalten – warte auf ersten Verbindungsversuch.' };
+  }
+  if (isNetErr(d.last_error)) {
+    return { cls:'grey', msg:'Kann erst geprüft werden, sobald poweropti unter der IP erreichbar ist.' };
+  }
+  if (is401(d.last_error)) {
+    return { cls:'red', msg:'API-Key falsch oder lokale Schnittstelle nicht freigeschaltet. Die lokale Schnittstelle erfordert den powerfox PRO Service.' };
+  }
+  return { cls:'yellow', msg:xlat(d.last_error) };
+}
+function setStatusMsg(id, st) {
+  var e = el(id);
+  if (!e) return;
+  e.textContent = st.msg || '';
+  e.className = 'stat-msg' + (st.cls && st.cls!=='grey' ? ' '+st.cls : '');
+}
 function renderPoIpDot(d) {
   var e = el('dot-po-ip');
-  // Pulse nur während Scan – sonst entfernen
-  if (!poScanRunning) e.classList.remove('pulse');
-
-  function setErr(msg) {
-    setDot(e,'red');
-    e.classList.add('clickable');
-    e.onclick = function(ev) {
-      ev.stopPropagation();
-      var errEl = el('err-po-ip');
-      if (errEl.style.display === 'none' || errEl.style.display === '') {
-        showErr(errEl, msg);
-      } else {
-        hideErr(errEl);
-      }
-    };
+  var st = poIpState(d);
+  // Pulse während eines laufenden Scans nicht überschreiben.
+  if (!poScanRunning) {
+    setDot(e, st.cls);
+    if (st.pulse) e.classList.add('pulse'); else e.classList.remove('pulse');
   }
-  function clearErr() {
-    e.classList.remove('clickable');
-    e.onclick = null;
-    hideErr(el('err-po-ip'));
-  }
-
-  if (d.poweropti_ok)         { setDot(e,'green');  clearErr(); return; }
-  if (!d.poweropti_ip)        { setDot(e,'grey');   clearErr(); return; }
-  if (!d.last_error)          {
-    // IP konfiguriert, noch kein Fehler → verbindet sich → gelb pulsierend
-    setDot(e,'yellow'); e.classList.add('pulse'); clearErr(); return;
-  }
-  if (is401(d.last_error))    { setErr('API-Key falsch oder nicht gesetzt.'); return; }
-  if (isNetErr(d.last_error)) { setErr(xlat(d.last_error)); return; }
-  setErr(xlat(d.last_error));
-}
-function renderPoIpErr(d) {
-  // Fehlermeldung wird jetzt durch Dot-Klick gesteuert, nicht mehr automatisch
-  // Nur ausblenden wenn kein Fehler mehr vorhanden
-  if (!d.last_error) hideErr(el('err-po-ip'));
+  setStatusMsg('po-ip-status', st);
 }
 function renderApiKeyDot(d) {
   var e = el('dot-api-key');
-  if (d.poweropti_ok)          { setDot(e,'green');  return; }
-  if (!d.last_error)           { setDot(e,'grey');   return; }
-  if (is401(d.last_error))     { setDot(e,'yellow'); return; }
-  if (isNetErr(d.last_error))  { setDot(e,'grey');   return; } // can't test key
-  setDot(e,'red');
-}
-function renderApiKeyErr(d) {
-  var e = el('err-api-key');
-  if (!d.last_error) { hideErr(e); return; }
-  if (is401(d.last_error)) {
-    showErr(e, 'API-Key falsch oder lokale Schnittstelle nicht freigeschaltet. Die lokale Schnittstelle erfordert den powerfox PRO Service.');
-    return;
-  }
-  if (!isNetErr(d.last_error)) { showErr(e, xlat(d.last_error)); return; }
-  hideErr(e);
+  var st = apiKeyState(d);
+  setDot(e, st.cls);
+  setStatusMsg('api-key-status', st);
 }
 
 // ================================================================
@@ -750,9 +766,15 @@ function startPoScan() {
         var key = dev.mac ? macToKey(dev.mac) : '';
         var li = document.createElement('li');
         li.className = 'scan-item';
-        li.innerHTML = '<span>' + esc(dev.ip) + '</span>' +
+        var dotCls = dev.reachable ? 'green' : 'red';
+        var dotTitle = dev.reachable
+          ? 'poweropti antwortet auf Ping – scheint online zu sein'
+          : 'Keine Ping-Antwort – Gerät evtl. ausgeschaltet oder in anderem Netzwerk';
+        li.innerHTML = '<span class="rdot ' + dotCls + '" title="' + esc(dotTitle) + '"></span>' +
+          '<span class="scan-item-txt">' + esc(dev.ip) +
           (key ? '<span class="scan-item-sub">API-Key: ' + esc(key) + '</span>'
-               : '<span class="scan-item-sub" style="color:#d29922">MAC nicht ermittelt</span>');
+               : '<span class="scan-item-sub" style="color:#d29922">MAC nicht ermittelt</span>') +
+          '</span>';
         li.onclick = function(){
           listEl.querySelectorAll('.scan-item').forEach(function(x){ x.classList.remove('sel'); });
           li.classList.add('sel');
@@ -763,13 +785,14 @@ function startPoScan() {
       }
 
       if (devs.length === 1) {
-        // Einzelnes Gerät: Innenliste + automatisch speichern
+        // Einzelnes Gerät: automatisch übernehmen und speichern
         var k = devs[0].mac ? macToKey(devs[0].mac) : '';
         el('inp-po-ip').value = devs[0].ip;
         selectedPoKey = k;
         if (k) el('inp-api-key').value = k;
-        lsEl.style.display = 'none';
-        stEl.textContent = '1 Gerät gefunden – wird gespeichert…';
+        stEl.textContent = devs[0].reachable
+          ? '1 Gerät gefunden (erreichbar) – wird gespeichert…'
+          : '1 Gerät gefunden (nicht erreichbar) – wird trotzdem gespeichert…';
         el('po-scan-outer').style.display = 'none';
         setTimeout(function(){ savePoIp(); }, 1200);
       } else {
@@ -996,8 +1019,6 @@ function setDot(e, cls) {
   e.className = 'rdot' + (cls && cls!=='grey' ? ' '+cls : '');
   if (wasPulse && cls!=='green' && cls!=='red') e.classList.add('pulse');
 }
-function showErr(e, msg) { e.textContent=msg; e.style.display='block'; }
-function hideErr(e)      { e.textContent='';  e.style.display='none'; }
 function showMsg(msg) {
   var e = el('bottom-msg'); e.textContent = msg;
   setTimeout(function(){ if(e.textContent===msg) e.textContent=''; }, 5000);
@@ -1016,16 +1037,19 @@ function isNetErr(err) {
 function xlat(msg) {
   if (!msg) return '';
   if (msg.indexOf('not configured')!=-1)        return 'poweropti IP nicht konfiguriert.';
-  if (msg.indexOf('unexpected status 404')!=-1) return 'Endpunkt nicht gefunden – stimmt die IP-Adresse?';
-  if (msg.indexOf('unexpected status 500')!=-1) return 'Interner Fehler im poweropti-Gerät.';
+  if (msg.indexOf('unexpected status 404')!=-1) return 'Endpunkt /value nicht gefunden (Status 404) – andere Firmware-Version oder falsches Gerät unter dieser IP?';
+  if (msg.indexOf('unexpected status 500')!=-1) return 'Interner Fehler im poweropti-Gerät (Status 500).';
+  if (msg.indexOf('unexpected status')!=-1)     return 'Unerwartete Antwort vom Gerät: ' + msg + '.';
   if (msg.indexOf('i/o timeout')!=-1 || msg.indexOf('deadline exceeded')!=-1)
-    return 'Zeitüberschreitung – poweropti antwortet nicht. IP-Adresse prüfen.';
+    return 'Zeitüberschreitung – poweropti antwortet nicht. IP-Adresse und Netzwerkverbindung prüfen.';
   if (msg.indexOf('connection refused')!=-1)
-    return 'Verbindung abgelehnt – läuft der poweropti?';
+    return 'Verbindung abgelehnt – läuft der poweropti-Webserver auf dieser IP?';
   if (msg.indexOf('no such host')!=-1 || msg.indexOf('dial tcp')!=-1)
-    return 'IP-Adresse nicht erreichbar – ist der poweropti im WLAN?';
+    return 'IP-Adresse nicht erreichbar – ist der poweropti im selben WLAN eingeschaltet?';
+  if (msg.indexOf('decode response')!=-1)
+    return 'Antwort nicht auswertbar – ungültiges JSON vom Gerät erhalten.';
   if (msg.indexOf('missing OBIS')!=-1)
-    return 'Messwert fehlt in der Antwort – ist der Zähler angeschlossen?';
+    return 'Messwert (Momentanleistung) fehlt in der Antwort – ist ein Stromzähler am poweropti angeschlossen?';
   if (msg.indexOf('timestamp is zero')!=-1)
     return 'Ungültige Antwort – poweropti meldet keinen Messzeitpunkt.';
   return msg;

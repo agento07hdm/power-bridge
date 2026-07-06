@@ -32,16 +32,17 @@ func hasNmcli() bool {
 
 // discoveredDevice holds the network identity of a found poweropti unit.
 type discoveredDevice struct {
-	IP  string `json:"ip"`
-	MAC string `json:"mac"` // uppercase, colon-separated – also used as API key
+	IP        string `json:"ip"`
+	MAC       string `json:"mac"`       // uppercase, colon-separated – also used as API key
+	Reachable bool   `json:"reachable"` // true if the device answered an ICMP ping
 }
 
-// pingIP sends a single ICMP ping to ip to ensure an ARP entry is created.
-// Errors are silently ignored – the ping is best-effort.
-func pingIP(ip string) {
+// pingIP sends a single ICMP ping to ip to ensure an ARP entry is created,
+// and reports whether the host answered.
+func pingIP(ip string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = exec.CommandContext(ctx, "ping", "-c", "1", "-W", "1", ip).Run()
+	return exec.CommandContext(ctx, "ping", "-c", "1", "-W", "1", ip).Run() == nil
 }
 
 // discoverPoweropti resolves the well-known "poweropti" hostname via both
@@ -66,18 +67,27 @@ func discoverPoweropti() []discoveredDevice {
 		}
 	}
 
-	// Ping all found IPs concurrently so ARP entries are populated before lookup.
+	// Ping all found IPs concurrently so ARP entries are populated before lookup,
+	// and record which ones actually answered.
+	reachable := make(map[string]bool, len(ips))
+	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, ip := range ips {
 		wg.Add(1)
-		go func(ip string) { defer wg.Done(); pingIP(ip) }(ip)
+		go func(ip string) {
+			defer wg.Done()
+			ok := pingIP(ip)
+			mu.Lock()
+			reachable[ip] = ok
+			mu.Unlock()
+		}(ip)
 	}
 	wg.Wait()
 
 	devices := make([]discoveredDevice, 0, len(ips))
 	for _, addr := range ips {
 		mac := lookupMACFromARP(addr)
-		devices = append(devices, discoveredDevice{IP: addr, MAC: mac})
+		devices = append(devices, discoveredDevice{IP: addr, MAC: mac, Reachable: reachable[addr]})
 	}
 	return devices
 }
