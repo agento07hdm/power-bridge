@@ -64,7 +64,7 @@ func (s *Server) apiUpdateApply(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(300 * time.Millisecond)
 		_ = exec.Command("systemd-run", "--no-block",
 			"bash", "-c",
-			"bash /usr/local/share/power-bridge/update.sh && systemctl restart "+serviceName,
+			"bash /usr/local/share/power-bridge/update.sh apply && systemctl restart "+serviceName,
 		).Start()
 	}()
 }
