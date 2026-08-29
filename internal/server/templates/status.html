@@ -564,9 +564,23 @@ function pushChartSample(watt) {
   if (chartBuf.length > CHART_MAX) chartBuf.shift();
   drawChart();
 }
+// Keeps the canvas's drawing-coordinate space 1:1 with its on-screen CSS
+// pixel size (it's stretched responsively via width:100%), so lines and
+// text don't come out stretched/distorted.
+function resizeChartCanvas(c) {
+  var w = c.clientWidth, h = c.clientHeight;
+  if (w > 0 && h > 0 && (c.width !== w || c.height !== h)) {
+    c.width = w;
+    c.height = h;
+  }
+}
+function fmtChartWatt(v) {
+  return Math.round(v) + ' W';
+}
 function drawChart() {
   var c = el('watt-chart');
   if (!c || chartBuf.length < 2) return;
+  resizeChartCanvas(c);
   var ctx = c.getContext('2d');
   var w = c.width, h = c.height;
   ctx.clearRect(0, 0, w, h);
@@ -574,10 +588,12 @@ function drawChart() {
   var min = Math.min.apply(null, chartBuf);
   var max = Math.max.apply(null, chartBuf);
   if (min === max) { min -= 1; max += 1; }
-  var pad = (max - min) * 0.12;
+  var pad = (max - min) * 0.2;
   min -= pad; max += pad;
 
   // Zero line (Bezug/Einspeisung-Grenze), when within the visible range
+  ctx.font = '9px system-ui, sans-serif';
+  ctx.fillStyle = '#6e7681';
   if (min < 0 && max > 0) {
     var zy = h - ((0 - min) / (max - min)) * h;
     ctx.strokeStyle = '#21262d';
@@ -586,10 +602,15 @@ function drawChart() {
     ctx.moveTo(0, zy);
     ctx.lineTo(w, zy);
     ctx.stroke();
+    // Skip the label if the zero line sits too close to the min/max labels
+    // in the corners – avoids them overlapping into an unreadable smudge.
+    if (zy > 13 && zy < h - 9) {
+      ctx.fillText('0 W', 3, zy - 3);
+    }
   }
 
   ctx.strokeStyle = '#388bfd';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   var step = w / (CHART_MAX - 1);
   chartBuf.forEach(function(v, i) {
@@ -598,6 +619,11 @@ function drawChart() {
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
+
+  // Kleine Skala: min/max des sichtbaren Bereichs oben/unten links.
+  ctx.fillStyle = '#6e7681';
+  ctx.fillText(fmtChartWatt(max - pad), 3, 9);
+  ctx.fillText(fmtChartWatt(min + pad), 3, h - 3);
 }
 
 // ================================================================
