@@ -6,7 +6,8 @@
 <title>power-bridge</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;font-size:14px;line-height:1.5;max-width:500px;margin:0 auto;padding-bottom:2.5rem}
+html{font-size:17px}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;font-size:15px;line-height:1.5;max-width:500px;margin:0 auto;padding-bottom:2.5rem}
 
 /* AP mode grayout – all rows except WLAN */
 body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
@@ -116,6 +117,11 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 #conn-msg{color:#8b949e;font-size:.88rem;line-height:1.65;max-width:300px}
 #conn-help{display:none;margin-top:1.5rem;font-size:.8rem;color:#484f58;line-height:1.75;max-width:300px;border-top:1px solid #21262d;padding-top:1.25rem}
+
+/* poweropti connecting indicator (shown in place of meter data until poweropti_ok) */
+.po-spin{width:22px;height:22px;border:2.5px solid #21262d;border-top-color:#388bfd;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto .55rem}
+#po-connecting{padding:1.1rem .8rem;text-align:center}
+#po-connecting-msg{font-size:.8rem;color:#8b949e;line-height:1.5}
 </style>
 </head>
 <body>
@@ -143,6 +149,13 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 <div class="hdr">
   <span class="hdr-title">power-bridge</span>
   <span class="rdot" id="hdr-dot"></span>
+</div>
+
+<!-- ── poweropti-Verbindungsstatus (sichtbar solange noch keine Messwerte da sind) ── -->
+<div id="po-connecting" style="display:none">
+  <div class="po-spin"></div>
+  <div id="po-connecting-msg"></div>
+  <div class="sep-gap"></div><div class="sep"></div><div class="sep-gap"></div>
 </div>
 
 <!-- ── Zählerdaten (nur sichtbar wenn poweropti_ok) ── -->
@@ -532,10 +545,12 @@ function render(d) {
   else if (d.poweropti_ok)   { setDot(hDot, 'green');  }
   else { setDot(hDot, is401(d.last_error) ? 'yellow' : 'grey'); }
 
-  // Meter section
+  // Meter section / connecting indicator
   var ms = el('meter-section');
+  var pc = el('po-connecting');
   if (d.poweropti_ok) {
     ms.style.display = '';
+    pc.style.display = 'none';
     txt('val-meter-watt',      fmtWattLbl(d.watt));
     txt('val-meter-consumed',  fmtKwh(d.consumed_wh));
     txt('val-meter-ht',        fmtKwh(d.ht_consumed_wh));
@@ -547,6 +562,8 @@ function render(d) {
     el('wrap-meter-nt').style.display = showHtNt ? '' : 'none';
   } else {
     ms.style.display = 'none';
+    pc.style.display = '';
+    txt('po-connecting-msg', poConnectingMsg(d));
   }
 
   // poweropti IP
@@ -631,6 +648,27 @@ function render(d) {
 //   - API-Key       → auth + payload validity. Only meaningful once the IP
 //     is reachable; red for 401, yellow for other application-level errors
 //     (bad status code, malformed payload, missing/invalid readings).
+// Short status line + spinner shown in place of meter data while
+// power-bridge is still working on the first (or a renewed) connection to
+// poweropti. Mirrors the same signals as poIpState/apiKeyState below, just
+// condensed to one line for the always-visible main view.
+function poConnectingMsg(d) {
+  if (!d.poweropti_ip) {
+    return poScanRunning
+      ? 'Suche poweropti im Netzwerk …'
+      : 'Keine poweropti-IP gefunden – bitte unten manuell eingeben.';
+  }
+  if (!d.last_error) {
+    return 'poweropti gefunden – warte auf erste Messwerte …';
+  }
+  if (isNetErr(d.last_error)) {
+    return 'poweropti antwortet nicht – erneuter Verbindungsversuch läuft …';
+  }
+  if (is401(d.last_error)) {
+    return 'poweropti erreichbar – API-Key wird geprüft …';
+  }
+  return 'poweropti erreichbar – warte auf gültige Messwerte …';
+}
 function poIpState(d) {
   if (!d.poweropti_ip) {
     return { cls:'grey', msg:'Keine poweropti-IP hinterlegt. Bitte Suche starten oder IP manuell eingeben.' };
