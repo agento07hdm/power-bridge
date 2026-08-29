@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -189,6 +190,11 @@ func (s *Server) setupSave(w http.ResponseWriter, r *http.Request) {
 	}
 	if phaseMode := r.FormValue("phase_mode"); phaseMode != "" {
 		s.cfg.PhaseMode = config.PhaseDistribution(phaseMode)
+	}
+	if pollStr := r.FormValue("poll_interval_sec"); pollStr != "" {
+		if sec, err := strconv.Atoi(pollStr); err == nil && sec >= 1 {
+			s.cfg.PollIntervalS = sec
+		}
 	}
 
 	s.cfg.Configured = true

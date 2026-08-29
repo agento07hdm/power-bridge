@@ -118,8 +118,9 @@ type apiStatusResponse struct {
 	IsAPMode          bool   `json:"is_ap_mode"`
 
 	// Poweropti identity
-	PoweroptiIP  string `json:"poweropti_ip"`
-	PoweroptiMAC string `json:"poweropti_mac"` // from ARP cache
+	PoweroptiIP   string `json:"poweropti_ip"`
+	PoweroptiMAC  string `json:"poweropti_mac"` // from ARP cache
+	PollIntervalS int    `json:"poll_interval_sec"`
 
 	// Shelly emulation identity
 	ShellyID    string `json:"shelly_id"`
@@ -145,8 +146,9 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) {
 		WifiRSSI:          getWifiRSSI(),
 		IsAPMode:          isCaptivePortalMode(),
 
-		PoweroptiIP:  s.cfg.PoweroptiIP,
-		PoweroptiMAC: lookupMACFromARP(s.cfg.PoweroptiIP),
+		PoweroptiIP:   s.cfg.PoweroptiIP,
+		PoweroptiMAC:  lookupMACFromARP(s.cfg.PoweroptiIP),
+		PollIntervalS: s.cfg.PollIntervalS,
 
 		ShellyID:    shellyID(s.cfg.ShellyMAC),
 		ShellyMAC:   s.cfg.ShellyMAC,

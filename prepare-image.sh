@@ -64,7 +64,7 @@ shelly_mac: "AA:BB:CC:DD:EE:FF"
 hostname: "shellypro3em-poweropti"
 device_profile: "standard"
 phase_mode: "equal"
-poll_interval_sec: 3
+poll_interval_sec: 2
 stale_timeout_sec: 30
 listen_addr: ":80"
 configured: false
