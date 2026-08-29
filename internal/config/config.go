@@ -67,7 +67,7 @@ func Defaults() *Config {
 		Hostname:      "shellypro3em-poweropti",
 		DeviceProfile: ProfileStandard,
 		PhaseMode:     PhaseEqual,
-		PollIntervalS: 3,
+		PollIntervalS: 2,
 		StaleTimeoutS: 30,
 		ShellyMAC:     "AA:BB:CC:DD:EE:FF",
 		ListenAddr:    ":80",

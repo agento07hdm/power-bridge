@@ -34,7 +34,7 @@ device_profile: "standard"
 phase_mode: "equal"
 
 # Poweropti polling interval in seconds (minimum 1)
-poll_interval_sec: 3
+poll_interval_sec: 2
 
 # After this many seconds without a valid reading the status turns "invalid"
 stale_timeout_sec: 30

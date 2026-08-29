@@ -6,8 +6,8 @@
 <title>power-bridge</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-html{font-size:17px}
-body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;font-size:15px;line-height:1.5;max-width:500px;margin:0 auto;padding-bottom:2.5rem}
+html{font-size:18px}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;font-size:16px;line-height:1.5;max-width:500px;margin:0 auto;padding-bottom:2.5rem}
 
 /* AP mode grayout – all rows except WLAN */
 body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
@@ -46,6 +46,13 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
 .row-arrow.open{transform:rotate(45deg)}
 /* invisible placeholders to keep all rows aligned */
 .row-ph{visibility:hidden}
+
+/* Group tile (power-bridge / Shelly / poweropti) – collapsed by default,
+   reveals its inner rows on click. Independent from the per-row toggleRow
+   accordion below. */
+.group-header .row-lbl{font-weight:600;color:#e6edf3;flex:1}
+.group-body{display:none}
+.group-body .row-main{padding-left:1.5rem}
 
 /* Edit panel */
 .row-edit{display:none;padding:.5rem .8rem .65rem;background:#0d1117;border-top:1px solid #21262d}
@@ -208,6 +215,9 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
       <span class="row-arrow row-ph">&#x203a;</span>
     </div>
   </div>
+  <div style="padding:.2rem .8rem .7rem">
+    <canvas id="watt-chart" width="600" height="120" style="width:100%;height:60px;display:block"></canvas>
+  </div>
   <div class="sep-gap"></div><div class="sep"></div><div class="sep-gap"></div>
 </div>
 
@@ -217,58 +227,78 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   <ul class="scan-list" id="po-scan-list-outer" style="margin:0"></ul>
 </div>
 
-<!-- ── poweropti IP ── -->
-<div class="row-wrap" id="wrap-po-ip">
-  <div class="row-main clickable" onclick="toggleRow('po-ip')">
-    <span class="row-lbl">poweropti IP</span>
-    <span class="row-val row-mono" id="val-po-ip-addr">&#x2013;</span>
-    <span class="rdot" id="dot-po-ip"></span>
-    <span class="row-arrow" id="arrow-po-ip">&#x203a;</span>
+<!-- ── poweropti (Kachel: IP, API-Key, Abrufintervall) ── -->
+<div class="row-wrap">
+  <div class="row-main clickable group-header" onclick="toggleGroup('poweropti')">
+    <span class="row-lbl">poweropti</span>
+    <span class="row-arrow" id="arrow-group-poweropti">&#x203a;</span>
   </div>
-  <div class="row-edit" id="edit-po-ip">
-    <div class="stat-msg" id="po-ip-status"></div>
-    <div class="scan-state" id="po-scan-state"></div>
-    <button class="btn-rescan" onclick="startPoScan()">Suche aktualisieren</button>
-    <label class="edit-lbl">IP-Adresse manuell</label>
-    <input class="edit-inp" type="text" id="inp-po-ip" placeholder="192.168.1.x" autocomplete="off">
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" onclick="savePoIp()">Speichern</button>
-    </div>
-  </div>
-</div>
+  <div class="group-body" id="body-group-poweropti">
 
-<!-- ── API-Key (poweropti-ID) ── -->
-<div class="row-wrap" id="wrap-api-key">
-  <div class="row-main clickable" onclick="toggleRow('api-key')">
-    <span class="row-lbl">API-Key (poweropti-ID)</span>
-    <span class="row-val row-mono" id="val-api-key">&#x2013;</span>
-    <span class="rdot" id="dot-api-key"></span>
-    <span class="row-arrow" id="arrow-api-key">&#x203a;</span>
-  </div>
-  <div class="row-edit" id="edit-api-key">
-    <div class="stat-msg" id="api-key-status"></div>
-    <label class="edit-lbl">poweropti-ID (API-Key)</label>
-    <input class="edit-inp" type="text" id="inp-api-key" placeholder="aabbccddeeff" autocomplete="off" maxlength="12">
-    <p class="edit-hint">12-stellige Ger&auml;te-ID des poweropti (MAC-Adresse ohne Doppelpunkte).<br>Manche Ger&auml;te akzeptieren auch: null</p>
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" onclick="saveApiKey()">Speichern</button>
+    <!-- ── poweropti IP ── -->
+    <div class="row-wrap" id="wrap-po-ip">
+      <div class="row-main clickable" onclick="toggleRow('po-ip')">
+        <span class="row-lbl">poweropti IP</span>
+        <span class="row-val row-mono" id="val-po-ip-addr">&#x2013;</span>
+        <span class="rdot" id="dot-po-ip"></span>
+        <span class="row-arrow" id="arrow-po-ip">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-po-ip">
+        <div class="stat-msg" id="po-ip-status"></div>
+        <div class="scan-state" id="po-scan-state"></div>
+        <button class="btn-rescan" onclick="startPoScan()">Suche aktualisieren</button>
+        <label class="edit-lbl">IP-Adresse manuell</label>
+        <input class="edit-inp" type="text" id="inp-po-ip" placeholder="192.168.1.x" autocomplete="off">
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" onclick="savePoIp()">Speichern</button>
+        </div>
+      </div>
     </div>
+
+    <!-- ── API-Key (poweropti-ID) ── -->
+    <div class="row-wrap" id="wrap-api-key">
+      <div class="row-main clickable" onclick="toggleRow('api-key')">
+        <span class="row-lbl">API-Key (poweropti-ID)</span>
+        <span class="row-val row-mono" id="val-api-key">&#x2013;</span>
+        <span class="rdot" id="dot-api-key"></span>
+        <span class="row-arrow" id="arrow-api-key">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-api-key">
+        <div class="stat-msg" id="api-key-status"></div>
+        <label class="edit-lbl">poweropti-ID (API-Key)</label>
+        <input class="edit-inp" type="text" id="inp-api-key" placeholder="aabbccddeeff" autocomplete="off" maxlength="12">
+        <p class="edit-hint">12-stellige Ger&auml;te-ID des poweropti (MAC-Adresse ohne Doppelpunkte).<br>Manche Ger&auml;te akzeptieren auch: null</p>
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" onclick="saveApiKey()">Speichern</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Abrufintervall ── -->
+    <div class="row-wrap" id="wrap-poll-interval">
+      <div class="row-main clickable" onclick="toggleRow('poll-interval')">
+        <span class="row-lbl">Abrufintervall</span>
+        <span class="row-val" id="val-poll-interval">&#x2013;</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow" id="arrow-poll-interval">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-poll-interval">
+        <label class="edit-lbl">Abrufintervall (Sekunden)</label>
+        <input class="edit-inp" type="number" id="inp-poll-interval" min="1" max="60" step="1" placeholder="2">
+        <p class="edit-hint">Wie oft power-bridge Messwerte vom poweropti abruft. Standard: 2 Sekunden.</p>
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" onclick="savePollInterval()">Speichern</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <div class="sep-gap"></div><div class="sep"></div><div class="sep-gap"></div>
-
-<!-- ── power-bridge IP ── -->
-<div class="row-wrap" id="wrap-br-ip">
-  <div class="row-main">
-    <span class="row-lbl">power-bridge IP</span>
-    <span class="row-val row-mono" id="val-br-ip">&#x2013;</span>
-    <span class="rdot" id="dot-br-ip"></span>
-    <span class="row-arrow row-ph">&#x203a;</span>
-  </div>
-</div>
 
 <!-- ── Aktuelles WLAN ── always interactive even in AP mode -->
 <div class="row-wrap" id="wrap-wlan">
@@ -293,137 +323,169 @@ body.ap-mode .row-wrap:not(#wrap-wlan){opacity:.4;pointer-events:none}
   </div>
 </div>
 
-<!-- ── power-bridge MAC ── -->
-<div class="row-wrap" id="wrap-br-mac">
-  <div class="row-main">
-    <span class="row-lbl">power-bridge MAC</span>
-    <span class="row-val row-mono" id="val-br-mac">&#x2013;</span>
-    <span class="rdot row-ph"></span>
-    <span class="row-arrow row-ph">&#x203a;</span>
+<!-- ── power-bridge (Kachel: IP, MAC, Version) ── -->
+<div class="row-wrap">
+  <div class="row-main clickable group-header" onclick="toggleGroup('bridge')">
+    <span class="row-lbl">power-bridge</span>
+    <span class="row-arrow" id="arrow-group-bridge">&#x203a;</span>
   </div>
-</div>
+  <div class="group-body" id="body-group-bridge">
 
-<!-- ── power-bridge Version ── -->
-<div class="row-wrap" id="wrap-version">
-  <div class="row-main" id="main-version">
-    <span class="row-lbl">power-bridge Version</span>
-    <span class="row-val row-mono" id="val-version">&#x2013;</span>
-    <span class="rdot" id="dot-version"></span>
-    <span class="row-arrow" id="arrow-version" style="visibility:hidden">&#x203a;</span>
-  </div>
-  <div class="row-edit" id="edit-version">
-    <p style="font-size:.8rem;color:#8b949e;margin-bottom:.5rem">Eine neue Version ist verf&uuml;gbar.</p>
-    <p id="version-info" style="font-size:.78rem;color:#e6edf3;margin-bottom:.5rem"></p>
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" id="btn-update" onclick="doUpdate()">Jetzt aktualisieren</button>
+    <!-- ── power-bridge IP ── -->
+    <div class="row-wrap" id="wrap-br-ip">
+      <div class="row-main">
+        <span class="row-lbl">power-bridge IP</span>
+        <span class="row-val row-mono" id="val-br-ip">&#x2013;</span>
+        <span class="rdot" id="dot-br-ip"></span>
+        <span class="row-arrow row-ph">&#x203a;</span>
+      </div>
     </div>
-    <p id="version-msg" style="font-size:.74rem;color:#8b949e;margin-top:.3rem;min-height:1rem"></p>
+
+    <!-- ── power-bridge MAC ── -->
+    <div class="row-wrap" id="wrap-br-mac">
+      <div class="row-main">
+        <span class="row-lbl">power-bridge MAC</span>
+        <span class="row-val row-mono" id="val-br-mac">&#x2013;</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow row-ph">&#x203a;</span>
+      </div>
+    </div>
+
+    <!-- ── power-bridge Version ── -->
+    <div class="row-wrap" id="wrap-version">
+      <div class="row-main" id="main-version">
+        <span class="row-lbl">power-bridge Version</span>
+        <span class="row-val row-mono" id="val-version">&#x2013;</span>
+        <span class="rdot" id="dot-version"></span>
+        <span class="row-arrow" id="arrow-version" style="visibility:hidden">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-version">
+        <p style="font-size:.8rem;color:#8b949e;margin-bottom:.5rem">Eine neue Version ist verf&uuml;gbar.</p>
+        <p id="version-info" style="font-size:.78rem;color:#e6edf3;margin-bottom:.5rem"></p>
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" id="btn-update" onclick="doUpdate()">Jetzt aktualisieren</button>
+        </div>
+        <p id="version-msg" style="font-size:.74rem;color:#8b949e;margin-top:.3rem;min-height:1rem"></p>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <div class="sep-gap"></div><div class="sep"></div><div class="sep-gap"></div>
 
-<!-- ── Shelly-ID ── -->
-<div class="row-wrap" id="wrap-shelly-id">
-  <div class="row-main clickable" onclick="toggleRow('shelly-id')">
-    <span class="row-lbl">Shelly-ID</span>
-    <span class="row-val row-mono" id="val-shelly-id">&#x2013;</span>
-    <span class="rdot row-ph"></span>
-    <span class="row-arrow" id="arrow-shelly-id">&#x203a;</span>
+<!-- ── Shelly (Kachel: ID, Hostname, IP, Phase, Endpunkte) ── -->
+<div class="row-wrap">
+  <div class="row-main clickable group-header" onclick="toggleGroup('shelly')">
+    <span class="row-lbl">Shelly</span>
+    <span class="row-arrow" id="arrow-group-shelly">&#x203a;</span>
   </div>
-  <div class="row-edit" id="edit-shelly-id">
-    <label class="edit-lbl">Shelly MAC-Adresse (Shelly-ID wird abgeleitet)</label>
-    <input class="edit-inp" type="text" id="inp-shelly-mac" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off">
-    <p class="edit-hint">Format: XX:XX:XX:XX:XX:XX</p>
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" onclick="saveShellyId()">Speichern</button>
+  <div class="group-body" id="body-group-shelly">
+
+    <!-- ── Shelly-ID ── -->
+    <div class="row-wrap" id="wrap-shelly-id">
+      <div class="row-main clickable" onclick="toggleRow('shelly-id')">
+        <span class="row-lbl">Shelly-ID</span>
+        <span class="row-val row-mono" id="val-shelly-id">&#x2013;</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow" id="arrow-shelly-id">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-shelly-id">
+        <label class="edit-lbl">Shelly MAC-Adresse (Shelly-ID wird abgeleitet)</label>
+        <input class="edit-inp" type="text" id="inp-shelly-mac" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off">
+        <p class="edit-hint">Format: XX:XX:XX:XX:XX:XX</p>
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" onclick="saveShellyId()">Speichern</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- ── Shelly Hostname ── -->
-<div class="row-wrap" id="wrap-shelly-host">
-  <div class="row-main clickable" onclick="toggleRow('shelly-host')">
-    <span class="row-lbl">Shelly Hostname</span>
-    <span class="row-val row-mono" id="val-shelly-host">&#x2013;</span>
-    <span class="rdot row-ph"></span>
-    <span class="row-arrow" id="arrow-shelly-host">&#x203a;</span>
-  </div>
-  <div class="row-edit" id="edit-shelly-host">
-    <label class="edit-lbl">Hostname</label>
-    <input class="edit-inp" type="text" id="inp-hostname" placeholder="shellypro3em-poweropti" autocomplete="off">
-    <p class="edit-hint">Erreichbar als &lt;hostname&gt;.local im Netzwerk</p>
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" onclick="saveHostname()">Speichern</button>
+    <!-- ── Shelly Hostname ── -->
+    <div class="row-wrap" id="wrap-shelly-host">
+      <div class="row-main clickable" onclick="toggleRow('shelly-host')">
+        <span class="row-lbl">Shelly Hostname</span>
+        <span class="row-val row-mono" id="val-shelly-host">&#x2013;</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow" id="arrow-shelly-host">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-shelly-host">
+        <label class="edit-lbl">Hostname</label>
+        <input class="edit-inp" type="text" id="inp-hostname" placeholder="shellypro3em-poweropti" autocomplete="off">
+        <p class="edit-hint">Erreichbar als &lt;hostname&gt;.local im Netzwerk</p>
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" onclick="saveHostname()">Speichern</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- ── Shelly IP (= Bridge IP, read-only) ── -->
-<div class="row-wrap" id="wrap-shelly-ip">
-  <div class="row-main">
-    <span class="row-lbl">Shelly IP</span>
-    <span class="row-val row-mono" id="val-shelly-ip">&#x2013;</span>
-    <span class="rdot row-ph"></span>
-    <span class="row-arrow row-ph">&#x203a;</span>
-  </div>
-</div>
-
-<!-- ── Phase ── -->
-<div class="row-wrap" id="wrap-phase">
-  <div class="row-main clickable" onclick="toggleRow('phase')">
-    <span class="row-lbl">Phase</span>
-    <span class="row-val" id="val-phase">&#x2013;</span>
-    <span class="rdot row-ph"></span>
-    <span class="row-arrow" id="arrow-phase">&#x203a;</span>
-  </div>
-  <div class="row-edit" id="edit-phase">
-    <label class="edit-lbl">Phasenverteilung</label>
-    <select class="edit-sel" id="sel-phase-mode">
-      <option value="equal">Gleichm&auml;&szlig;ig (L1 / L2 / L3)</option>
-      <option value="l1">Alles auf L1</option>
-    </select>
-    <div class="edit-row">
-      <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
-      <button class="btn-save" onclick="savePhase()">Speichern</button>
+    <!-- ── Shelly IP (= Bridge IP, read-only) ── -->
+    <div class="row-wrap" id="wrap-shelly-ip">
+      <div class="row-main">
+        <span class="row-lbl">Shelly IP</span>
+        <span class="row-val row-mono" id="val-shelly-ip">&#x2013;</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow row-ph">&#x203a;</span>
+      </div>
     </div>
-  </div>
-</div>
 
-<!-- ── Shelly Endpunkte ── -->
-<div class="row-wrap" id="wrap-endpoints">
-  <div class="row-main clickable" onclick="toggleRow('endpoints')">
-    <span class="row-lbl">Shelly Endpunkte</span>
-    <span class="row-val" style="color:#8b949e;font-size:.76rem">anzeigen</span>
-    <span class="rdot row-ph"></span>
-    <span class="row-arrow" id="arrow-endpoints">&#x203a;</span>
-  </div>
-  <div class="row-edit" id="edit-endpoints">
-    <ul class="ep-list">
-      <li class="ep-item">
-        <button class="ep-btn" onclick="loadEp(this,'/rpc/EM.GetStatus?id=0')">/rpc/EM.GetStatus?id=0</button>
-        <pre class="ep-pre"></pre>
-      </li>
-      <li class="ep-item">
-        <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetStatus')">/rpc/Shelly.GetStatus</button>
-        <pre class="ep-pre"></pre>
-      </li>
-      <li class="ep-item">
-        <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetDeviceInfo')">/rpc/Shelly.GetDeviceInfo</button>
-        <pre class="ep-pre"></pre>
-      </li>
-      <li class="ep-item">
-        <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetConfig')">/rpc/Shelly.GetConfig</button>
-        <pre class="ep-pre"></pre>
-      </li>
-      <li class="ep-item">
-        <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetComponents')">/rpc/Shelly.GetComponents</button>
-        <pre class="ep-pre"></pre>
-      </li>
-    </ul>
+    <!-- ── Phase ── -->
+    <div class="row-wrap" id="wrap-phase">
+      <div class="row-main clickable" onclick="toggleRow('phase')">
+        <span class="row-lbl">Phase</span>
+        <span class="row-val" id="val-phase">&#x2013;</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow" id="arrow-phase">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-phase">
+        <label class="edit-lbl">Phasenverteilung</label>
+        <select class="edit-sel" id="sel-phase-mode">
+          <option value="equal">Gleichm&auml;&szlig;ig (L1 / L2 / L3)</option>
+          <option value="l1">Alles auf L1</option>
+        </select>
+        <div class="edit-row">
+          <button class="btn-cancel" onclick="closeRow()">Abbrechen</button>
+          <button class="btn-save" onclick="savePhase()">Speichern</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Shelly Endpunkte ── -->
+    <div class="row-wrap" id="wrap-endpoints">
+      <div class="row-main clickable" onclick="toggleRow('endpoints')">
+        <span class="row-lbl">Shelly Endpunkte</span>
+        <span class="row-val" style="color:#8b949e;font-size:.76rem">anzeigen</span>
+        <span class="rdot row-ph"></span>
+        <span class="row-arrow" id="arrow-endpoints">&#x203a;</span>
+      </div>
+      <div class="row-edit" id="edit-endpoints">
+        <ul class="ep-list">
+          <li class="ep-item">
+            <button class="ep-btn" onclick="loadEp(this,'/rpc/EM.GetStatus?id=0')">/rpc/EM.GetStatus?id=0</button>
+            <pre class="ep-pre"></pre>
+          </li>
+          <li class="ep-item">
+            <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetStatus')">/rpc/Shelly.GetStatus</button>
+            <pre class="ep-pre"></pre>
+          </li>
+          <li class="ep-item">
+            <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetDeviceInfo')">/rpc/Shelly.GetDeviceInfo</button>
+            <pre class="ep-pre"></pre>
+          </li>
+          <li class="ep-item">
+            <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetConfig')">/rpc/Shelly.GetConfig</button>
+            <pre class="ep-pre"></pre>
+          </li>
+          <li class="ep-item">
+            <button class="ep-btn" onclick="loadEp(this,'/rpc/Shelly.GetComponents')">/rpc/Shelly.GetComponents</button>
+            <pre class="ep-pre"></pre>
+          </li>
+        </ul>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -479,15 +541,64 @@ var updateAvailable = false;
 var updateApplied = false;
 var selectedPoKey = ''; // key from scan auto-fill
 var poScanRunning = false;
+var poScanHasResults = false; // multi-device scan list is currently shown
 var wifiScanRunning = false;
 
 // Config values not in /api/status – initialised from template once
 var cfg = {
-  wifiPassword : '{{.Cfg.WIFIPassword}}',
-  hostname     : '{{.Cfg.Hostname}}',
-  phaseMode    : '{{.Cfg.PhaseMode}}',
-  apiKey       : '{{.Cfg.PoweroptiAPIKey}}'
+  wifiPassword  : '{{.Cfg.WIFIPassword}}',
+  hostname      : '{{.Cfg.Hostname}}',
+  phaseMode     : '{{.Cfg.PhaseMode}}',
+  apiKey        : '{{.Cfg.PoweroptiAPIKey}}',
+  pollIntervalS : {{.Cfg.PollIntervalS}}
 };
+
+// ================================================================
+// Leistungs-Diagramm – einfacher, von rechts nach links laufender Verlauf
+// ================================================================
+var chartBuf = [];
+var CHART_MAX = 60; // samples kept (~ a few minutes at the poll interval)
+function pushChartSample(watt) {
+  if (typeof watt !== 'number' || isNaN(watt)) return;
+  chartBuf.push(watt);
+  if (chartBuf.length > CHART_MAX) chartBuf.shift();
+  drawChart();
+}
+function drawChart() {
+  var c = el('watt-chart');
+  if (!c || chartBuf.length < 2) return;
+  var ctx = c.getContext('2d');
+  var w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+
+  var min = Math.min.apply(null, chartBuf);
+  var max = Math.max.apply(null, chartBuf);
+  if (min === max) { min -= 1; max += 1; }
+  var pad = (max - min) * 0.12;
+  min -= pad; max += pad;
+
+  // Zero line (Bezug/Einspeisung-Grenze), when within the visible range
+  if (min < 0 && max > 0) {
+    var zy = h - ((0 - min) / (max - min)) * h;
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, zy);
+    ctx.lineTo(w, zy);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#388bfd';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  var step = w / (CHART_MAX - 1);
+  chartBuf.forEach(function(v, i) {
+    var x = w - (chartBuf.length - 1 - i) * step;
+    var y = h - ((v - min) / (max - min)) * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
 
 // ================================================================
 // Poll
@@ -551,6 +662,7 @@ function render(d) {
   if (d.poweropti_ok) {
     ms.style.display = '';
     pc.style.display = 'none';
+    el('po-scan-outer').style.display = 'none'; // stale scan list from setup, no longer relevant
     txt('val-meter-watt',      fmtWattLbl(d.watt));
     txt('val-meter-consumed',  fmtKwh(d.consumed_wh));
     txt('val-meter-ht',        fmtKwh(d.ht_consumed_wh));
@@ -560,10 +672,18 @@ function render(d) {
     var showHtNt = (d.ht_consumed_wh > 0 || d.nt_consumed_wh > 0);
     el('wrap-meter-ht').style.display = showHtNt ? '' : 'none';
     el('wrap-meter-nt').style.display = showHtNt ? '' : 'none';
+    pushChartSample(d.watt);
   } else {
     ms.style.display = 'none';
-    pc.style.display = '';
-    txt('po-connecting-msg', poConnectingMsg(d));
+    // While the scan list is showing candidates to pick from, that list is
+    // itself the actionable prompt – don't also show a contradictory
+    // "nothing found" message above it.
+    if (poScanHasResults) {
+      pc.style.display = 'none';
+    } else {
+      pc.style.display = '';
+      txt('po-connecting-msg', poConnectingMsg(d));
+    }
   }
 
   // poweropti IP
@@ -582,6 +702,10 @@ function render(d) {
   if (d.poweropti_mac && !el('inp-api-key').value) {
     el('inp-api-key').value = macToKey(d.poweropti_mac);
   }
+
+  // Abrufintervall
+  cfg.pollIntervalS = d.poll_interval_sec || cfg.pollIntervalS;
+  txt('val-poll-interval', (d.poll_interval_sec || cfg.pollIntervalS) + ' s');
 
   // Bridge IP
   txt('val-br-ip', d.bridge_ip || '–');
@@ -731,6 +855,19 @@ function renderApiKeyDot(d) {
 }
 
 // ================================================================
+// Group tiles (power-bridge / Shelly / poweropti) – independent of the
+// per-row edit accordion below; a group just shows/hides its inner rows.
+// ================================================================
+function toggleGroup(id) {
+  var body = el('body-group-' + id);
+  var arr  = el('arrow-group-' + id);
+  if (!body) return;
+  var opening = body.style.display !== 'block';
+  body.style.display = opening ? 'block' : 'none';
+  if (arr) arr.classList.toggle('open', opening);
+}
+
+// ================================================================
 // Row edit
 // ================================================================
 function toggleRow(id) {
@@ -776,6 +913,8 @@ function onOpen(id) {
     el('inp-hostname').value = cfg.hostname;
   } else if (id === 'phase') {
     el('sel-phase-mode').value = D.phase_mode || cfg.phaseMode || 'equal';
+  } else if (id === 'poll-interval') {
+    el('inp-poll-interval').value = D.poll_interval_sec || cfg.pollIntervalS || 2;
   }
 }
 
@@ -790,6 +929,7 @@ function startPoScan() {
   el('dot-po-ip').classList.add('pulse');
   el('po-scan-list-outer').innerHTML = '';
   el('po-scan-outer').style.display = 'none';
+  poScanHasResults = false;
   fetch('/setup/scan-poweropti')
     .then(function(r){ return r.json(); })
     .then(function(d){
@@ -844,12 +984,15 @@ function startPoScan() {
             selectedPoKey = key;
             if (key) el('inp-api-key').value = key;
             el('po-scan-outer').style.display = 'none';
+            poScanHasResults = false;
             savePoIp();
           });
         });
         outEl.style.display = 'block';
         outSt.textContent = devs.length + ' poweropti-Geräte gefunden – bitte auswählen:';
         el('po-scan-outer').style.display = '';
+        poScanHasResults = true;
+        el('po-connecting').style.display = 'none';
 
         stEl.textContent = devs.length + ' Geräte gefunden – siehe Liste oben';
       }
@@ -948,6 +1091,15 @@ function savePhase() {
   var m = el('sel-phase-mode').value;
   postSave({ phase_mode: m }, function(){ cfg.phaseMode = m; closeRow(); });
 }
+function savePollInterval() {
+  var sec = parseInt(el('inp-poll-interval').value, 10);
+  if (!sec || sec < 1) return;
+  postSave({ poll_interval_sec: sec }, function(){
+    cfg.pollIntervalS = sec;
+    txt('val-poll-interval', sec + ' s');
+    closeRow();
+  });
+}
 
 // ================================================================
 // Universal POST /setup/save
@@ -961,7 +1113,8 @@ function buildPayload(ov) {
     device_profile   : 'standard',
     shelly_mac       : D.shelly_mac    || '{{.Cfg.ShellyMAC}}',
     hostname         : cfg.hostname    || '{{.Cfg.Hostname}}',
-    phase_mode       : D.phase_mode    || cfg.phaseMode || '{{.Cfg.PhaseMode}}'
+    phase_mode       : D.phase_mode    || cfg.phaseMode || '{{.Cfg.PhaseMode}}',
+    poll_interval_sec: D.poll_interval_sec || cfg.pollIntervalS || {{.Cfg.PollIntervalS}}
   };
   if (ov) Object.keys(ov).forEach(function(k){ p[k] = ov[k]; });
   return p;

@@ -103,23 +103,24 @@ func (c *Client) Notify() <-chan struct{} {
 	return c.notifyCh
 }
 
-// Run starts the polling loop and blocks until ctx is cancelled.
+// Run starts the polling loop and blocks until ctx is cancelled. The interval
+// is re-read from cfg before every wait so a change saved via the web UI
+// (PollIntervalS) takes effect on the next cycle without a restart.
 func (c *Client) Run(ctx context.Context) {
-	interval := time.Duration(c.cfg.PollIntervalS) * time.Second
-	if interval < time.Second {
-		interval = time.Second
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
 	// Poll immediately on start.
 	c.poll()
 
 	for {
+		interval := time.Duration(c.cfg.PollIntervalS) * time.Second
+		if interval < time.Second {
+			interval = time.Second
+		}
+		timer := time.NewTimer(interval)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			c.poll()
 		}
 	}
