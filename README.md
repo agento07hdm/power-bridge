@@ -73,7 +73,7 @@ Ein powerfox **poweropti** wird lokal ausgelesen und als virtueller **Shelly Pro
 ```bash
 ssh-keygen -R power-bridge.local   # ggf. alten Fingerabdruck löschen
 ssh pi@<PI_IP>                      # IP aus Router-DHCP oder: ssh pi@power-bridge.local
-curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/agento07hdm/power-bridge/main/install.sh | sudo bash
 ```
 
 Das Skript:
@@ -139,23 +139,46 @@ Das Skript `prepare-image.sh` führt folgendes aus:
 
 ---
 
-## Automatische OTA-Updates
+## OTA-Updates
 
-power-bridge überprüft **bei jedem Boot automatisch**, ob ein neueres GitHub Release verfügbar ist.
+power-bridge überprüft **bei jedem Boot automatisch**, ob ein neueres GitHub
+Release verfügbar ist – installiert wird ein Update aber **nicht automatisch**.
+Ein Update wird nur nach ausdrücklicher Bestätigung durch die Nutzerin/den
+Nutzer eingespielt (Button „Jetzt aktualisieren“ im Web-UI, oder manuell per
+Kommandozeile). Das verhindert, dass ein kompromittiertes Release (z.B. durch
+ein geleaktes GitHub-Token) automatisch und unbemerkt auf allen Geräten im
+Feld installiert wird.
+
+Vor der Installation wird jedes Release-Binary zweifach geprüft:
+1. **SHA256-Checksumme** gegen die im Release veröffentlichte `SHA256SUMS`-Datei
+2. **GitHub-Build-Provenance-Attestation** – ein kryptografischer Nachweis,
+   dass genau dieses Binary vom `release.yml`-Workflow aus genau diesem Repo
+   gebaut wurde (verifiziert per `gh attestation verify`). Das schützt auch
+   dann, wenn jemand mit gestohlenem Schreibzugriff ein manipuliertes Binary
+   nachträglich in ein bestehendes Release hochladen würde.
 
 ### Verhalten beim Boot
 
 ```
 Boot
- └─ power-bridge-update.service (oneshot)
+ └─ power-bridge-update.service (oneshot, "check"-Modus)
      ├─ Kein Internet → sofortiger Weiterstart mit aktueller Version
      ├─ Aktuelle Version → sofortiger Weiterstart
-     └─ Neues Release gefunden
-         ├─ Binary herunterladen
-         ├─ Backup der alten Binary erstellen
-         ├─ Neue Binary atomar installieren (power-failure-sicher)
-         └─ VERSION-Datei aktualisieren
- └─ power-bridge.service startet (immer nach dem Update-Service)
+     └─ Neues Release gefunden → wird nur geloggt, NICHT installiert
+         (außer /etc/power-bridge/auto-update enthält "true")
+ └─ power-bridge.service startet (immer nach dem Update-Check)
+```
+
+### Update installieren
+
+Im Web-UI erscheint bei verfügbarem Update ein gelber Punkt neben der
+Versionsnummer; Klick darauf → „Jetzt aktualisieren“ löst Download,
+Verifikation und Installation aus.
+
+Manuell per SSH:
+
+```bash
+sudo bash /usr/local/share/power-bridge/update.sh apply
 ```
 
 ### Update-Kanal wechseln
@@ -166,6 +189,12 @@ echo "stable" | sudo tee /etc/power-bridge/update-channel
 
 # Beta (Pre-Releases):
 echo "beta" | sudo tee /etc/power-bridge/update-channel
+```
+
+### Automatische Installation wieder aktivieren (nicht empfohlen)
+
+```bash
+echo "true" | sudo tee /etc/power-bridge/auto-update
 ```
 
 ### Rollback nach fehlerhaftem Update
@@ -188,13 +217,6 @@ journalctl -u power-bridge-update
 
 # Letzter Boot:
 journalctl -u power-bridge-update -b
-```
-
-### Manuelles Update auslösen
-
-```bash
-sudo bash /usr/local/share/power-bridge/update.sh
-sudo systemctl restart power-bridge
 ```
 
 ---

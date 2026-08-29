@@ -2,11 +2,11 @@
 # =============================================================================
 # power-bridge install script for Raspberry Pi OS Lite 32-bit (ARMv6)
 # Usage (as root or via sudo):
-#   curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/agento07hdm/power-bridge/main/install.sh | sudo bash
 # =============================================================================
 set -euo pipefail
 
-REPO="fedzzito/power-bridge"
+REPO="agento07hdm/power-bridge"
 BINARY_DEST="/usr/local/bin/power-bridge"
 SHARE_DIR="/usr/local/share/power-bridge"
 CONFIG_DIR="/etc/power-bridge"
@@ -14,10 +14,70 @@ AVAHI_SVC_DIR="/etc/avahi/services"
 AP_SSID="power-bridge"
 AP_IP="192.168.4.1"
 
+# gh CLI is used only to verify GitHub build-provenance attestations. Pinned
+# version + hardcoded checksum so a compromised download can't smuggle in a
+# tampered verifier.
+GH_CLI_VERSION="2.98.0"
+GH_CLI_SHA256="2c1706b6ff1f10bf93a0b370bc61e45f5e1fd78379361f414c5ac05bc5bf75d3"
+GH_CLI_DIR="${SHARE_DIR}/gh-cli"
+GH_CLI_BIN="${GH_CLI_DIR}/gh"
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 ok()    { echo -e "${GREEN}✓${NC} $*"; }
 warn()  { echo -e "${YELLOW}⚠${NC}  $*"; }
 error() { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
+
+# ── gh CLI (build-provenance verification) ────────────────────────────────────
+ensure_gh_cli() {
+    if command -v gh >/dev/null 2>&1; then
+        GH_CLI_BIN=$(command -v gh)
+        return 0
+    fi
+    [ -x "$GH_CLI_BIN" ] && return 0
+
+    echo "  Fetching gh CLI (one-time download, used to verify build provenance)…"
+    local tarball
+    tarball=$(mktemp /tmp/gh-cli-XXXXXX.tar.gz)
+    if ! curl -fsSL --max-time 60 \
+        "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_armv6.tar.gz" \
+        -o "$tarball" 2>/dev/null; then
+        warn "Could not download gh CLI – provenance verification unavailable"
+        rm -f "$tarball"
+        return 1
+    fi
+    local actual_sha
+    actual_sha=$(sha256sum "$tarball" | awk '{print $1}')
+    if [ "$actual_sha" != "$GH_CLI_SHA256" ]; then
+        warn "gh CLI download checksum mismatch – refusing to use it"
+        rm -f "$tarball"
+        return 1
+    fi
+    mkdir -p "$GH_CLI_DIR"
+    if ! tar -xzf "$tarball" -O "gh_${GH_CLI_VERSION}_linux_armv6/bin/gh" > "${GH_CLI_BIN}.tmp" 2>/dev/null; then
+        warn "Could not extract gh CLI – provenance verification unavailable"
+        rm -f "$tarball" "${GH_CLI_BIN}.tmp"
+        return 1
+    fi
+    mv -f "${GH_CLI_BIN}.tmp" "$GH_CLI_BIN"
+    chmod 755 "$GH_CLI_BIN"
+    rm -f "$tarball"
+    [ -x "$GH_CLI_BIN" ]
+}
+
+# Ties the binary back to the exact commit + workflow run that built it.
+verify_attestation() {
+    local file="$1"
+    if ! ensure_gh_cli; then
+        return 2
+    fi
+    if "$GH_CLI_BIN" attestation verify "$file" \
+        --repo "$REPO" \
+        --signer-workflow "${REPO}/.github/workflows/release.yml" \
+        > /tmp/power-bridge-attestation.log 2>&1; then
+        return 0
+    fi
+    return 1
+}
 
 # ── Root check ────────────────────────────────────────────────────────────────
 [ "$(id -u)" -eq 0 ] || error "Please run as root: sudo bash install.sh"
@@ -32,10 +92,37 @@ ok "Latest version: $VERSION"
 # Stop running service before replacing binary (fixes locked-binary update issue)
 systemctl stop power-bridge 2>/dev/null || true
 
-# ── 2. Download and install binary ────────────────────────────────────────────
+# ── 2. Download, verify and install binary ────────────────────────────────────
 echo -e "\n${GREEN}[2/13]${NC} Downloading binary power-bridge-${VERSION}-linux-armv6…"
-BINARY_URL="https://github.com/${REPO}/releases/download/${VERSION}/power-bridge-${VERSION}-linux-armv6"
-curl -fsSL "$BINARY_URL" -o "$BINARY_DEST"
+BINARY_NAME="power-bridge-${VERSION}-linux-armv6"
+BINARY_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}"
+TEMP_BINARY=$(mktemp /tmp/power-bridge-install-XXXXXX)
+trap 'rm -f "$TEMP_BINARY" "$TEMP_SUMS" 2>/dev/null || true' EXIT
+curl -fsSL "$BINARY_URL" -o "$TEMP_BINARY"
+[ -s "$TEMP_BINARY" ] || error "Downloaded binary is empty"
+
+echo "  Verifying checksum…"
+SUMS_URL="https://github.com/${REPO}/releases/download/${VERSION}/SHA256SUMS"
+TEMP_SUMS=$(mktemp /tmp/power-bridge-sums-XXXXXX)
+curl -fsSL "$SUMS_URL" -o "$TEMP_SUMS" || error "Could not download SHA256SUMS – refusing to install an unverified binary"
+EXPECTED_SHA=$(grep " ${BINARY_NAME}\$" "$TEMP_SUMS" | awk '{print $1}')
+[ -n "$EXPECTED_SHA" ] || error "No checksum entry for $BINARY_NAME in SHA256SUMS"
+ACTUAL_SHA=$(sha256sum "$TEMP_BINARY" | awk '{print $1}')
+[ "$ACTUAL_SHA" = "$EXPECTED_SHA" ] || error "Checksum mismatch for $BINARY_NAME (expected $EXPECTED_SHA, got $ACTUAL_SHA)"
+ok "Checksum verified"
+
+echo "  Verifying build provenance…"
+verify_attestation "$TEMP_BINARY"
+ATTESTATION_STATUS=$?
+if [ "$ATTESTATION_STATUS" -eq 1 ]; then
+    error "Build provenance verification failed: $(cat /tmp/power-bridge-attestation.log 2>/dev/null)"
+elif [ "$ATTESTATION_STATUS" -eq 2 ]; then
+    warn "Build provenance NOT verified (gh CLI unavailable) – proceeding on checksum alone"
+else
+    ok "Build provenance verified (signed by GitHub Actions for $REPO)"
+fi
+
+cp -f "$TEMP_BINARY" "$BINARY_DEST"
 chmod 755 "$BINARY_DEST"
 ok "Binary installed to $BINARY_DEST"
 
@@ -44,6 +131,9 @@ mkdir -p "$CONFIG_DIR"
 echo "$VERSION" > "$CONFIG_DIR/VERSION"
 # Set the update channel to stable (can be changed to "beta" manually)
 [ -f "$CONFIG_DIR/update-channel" ] || echo "stable" > "$CONFIG_DIR/update-channel"
+# Updates are manual by default: the boot check only notifies, it does not
+# install anything. Set to "true" to restore fully-automatic installs at boot.
+[ -f "$CONFIG_DIR/auto-update" ] || echo "false" > "$CONFIG_DIR/auto-update"
 ok "Version $VERSION recorded in $CONFIG_DIR/VERSION"
 
 # ── 3. System packages ────────────────────────────────────────────────────────
@@ -91,7 +181,7 @@ echo -e "\n${GREEN}[5/13]${NC} Installing systemd service…"
 cat > /etc/systemd/system/power-bridge.service << 'EOF'
 [Unit]
 Description=power-bridge – powerfox poweropti → virtual Shelly Pro 3EM
-Documentation=https://github.com/fedzzito/power-bridge
+Documentation=https://github.com/agento07hdm/power-bridge
 # Start only after the boot-time OTA update check has completed.
 # Wants= (not Requires=) so that power-bridge starts even if the update
 # service is not installed or fails unexpectedly.
@@ -330,6 +420,7 @@ EOF
     ok "Config reset to defaults (configured: false)"
 fi
 echo "stable" > /etc/power-bridge/update-channel 2>/dev/null || true
+echo "false" > /etc/power-bridge/auto-update 2>/dev/null || true
 
 step "Clearing WiFi credentials from all storage locations…"
 
@@ -497,20 +588,57 @@ mkdir -p "$SHARE_DIR"
 cat > "$SHARE_DIR/update.sh" << 'UPDATE_EOF'
 #!/usr/bin/env bash
 # =============================================================================
-# power-bridge update.sh – boot-time OTA update via GitHub Releases
-# Called automatically by power-bridge-update.service at each boot.
-# Manual usage: sudo bash /usr/local/share/power-bridge/update.sh
+# power-bridge update.sh
+# Update check + install via GitHub Releases.
+#
+# Behaviour:
+#   - Checks GitHub API for a newer release (stable channel by default)
+#   - In "check" mode (default, used at boot): only checks and logs whether an
+#     update is available. Does NOT download or install anything, unless
+#     /etc/power-bridge/auto-update contains "true" (opt-in).
+#   - In "apply" mode (triggered by the web UI's "Jetzt aktualisieren" button,
+#     or by running this script manually with the "apply" argument): downloads
+#     the release, verifies its SHA256 checksum against the published
+#     SHA256SUMS file, verifies GitHub build provenance (attestation) for the
+#     binary, and only then installs it.
+#   - Creates a rollback backup before replacing the binary
+#   - Skips silently when there is no internet connectivity
+#   - Logs all actions to the systemd journal (via logger) and stdout
+#
+# Channel selection (optional):
+#   echo "beta" | sudo tee /etc/power-bridge/update-channel
+#
+# Auto-install at boot (optional, off by default):
+#   echo "true" | sudo tee /etc/power-bridge/auto-update
+#
+# Usage:
+#   sudo bash /usr/local/share/power-bridge/update.sh check   # check only (default)
+#   sudo bash /usr/local/share/power-bridge/update.sh apply   # check, verify, install
+#
+# At boot this script is called with "check" by power-bridge-update.service
+# (oneshot), which must complete before power-bridge.service starts.
 # =============================================================================
 set -euo pipefail
 
-REPO="fedzzito/power-bridge"
+MODE="${1:-check}"
+
+REPO="agento07hdm/power-bridge"
 BINARY_DEST="/usr/local/bin/power-bridge"
 SHARE_DIR="/usr/local/share/power-bridge"
 VERSION_FILE="/etc/power-bridge/VERSION"
 CHANNEL_FILE="/etc/power-bridge/update-channel"
+AUTO_UPDATE_FILE="/etc/power-bridge/auto-update"
 BACKUP_BINARY="${SHARE_DIR}/power-bridge.bak"
 BACKUP_VERSION="${SHARE_DIR}/VERSION.bak"
 LOG_TAG="power-bridge-update"
+
+# gh CLI is used only to verify GitHub build-provenance attestations. Pinned
+# version + hardcoded checksum so a compromised download can't smuggle in a
+# tampered verifier.
+GH_CLI_VERSION="2.98.0"
+GH_CLI_SHA256="2c1706b6ff1f10bf93a0b370bc61e45f5e1fd78379361f414c5ac05bc5bf75d3"
+GH_CLI_DIR="${SHARE_DIR}/gh-cli"
+GH_CLI_BIN="${GH_CLI_DIR}/gh"
 
 log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')]  $*"; logger -t "$LOG_TAG" "$*" 2>/dev/null || true; }
 ok()   { log "✓ $*"; }
@@ -519,13 +647,72 @@ err()  { log "✗ $*" >&2; }
 
 [ "$(id -u)" -eq 0 ] || { err "Please run as root"; exit 1; }
 
+ensure_gh_cli() {
+    if command -v gh >/dev/null 2>&1; then
+        GH_CLI_BIN=$(command -v gh)
+        return 0
+    fi
+    [ -x "$GH_CLI_BIN" ] && return 0
+
+    log "Fetching gh CLI (one-time download, used to verify build provenance)…"
+    local tarball
+    tarball=$(mktemp /tmp/gh-cli-XXXXXX.tar.gz)
+    if ! curl -fsSL --max-time 60 \
+        "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_armv6.tar.gz" \
+        -o "$tarball" 2>/dev/null; then
+        warn "Could not download gh CLI – provenance verification unavailable"
+        rm -f "$tarball"
+        return 1
+    fi
+
+    local actual_sha
+    actual_sha=$(sha256sum "$tarball" | awk '{print $1}')
+    if [ "$actual_sha" != "$GH_CLI_SHA256" ]; then
+        err "gh CLI download checksum mismatch – refusing to use it"
+        rm -f "$tarball"
+        return 1
+    fi
+
+    mkdir -p "$GH_CLI_DIR"
+    if ! tar -xzf "$tarball" -O "gh_${GH_CLI_VERSION}_linux_armv6/bin/gh" > "${GH_CLI_BIN}.tmp" 2>/dev/null; then
+        warn "Could not extract gh CLI – provenance verification unavailable"
+        rm -f "$tarball" "${GH_CLI_BIN}.tmp"
+        return 1
+    fi
+    mv -f "${GH_CLI_BIN}.tmp" "$GH_CLI_BIN"
+    chmod 755 "$GH_CLI_BIN"
+    rm -f "$tarball"
+    [ -x "$GH_CLI_BIN" ]
+}
+
+# Ties the binary back to the exact commit + workflow run that built it, so a
+# release asset re-uploaded via a leaked token (without a matching CI run)
+# fails verification even if it happens to carry a matching checksum.
+verify_attestation() {
+    local file="$1"
+    if ! ensure_gh_cli; then
+        return 2
+    fi
+    if "$GH_CLI_BIN" attestation verify "$file" \
+        --repo "$REPO" \
+        --signer-workflow "${REPO}/.github/workflows/release.yml" \
+        > /tmp/power-bridge-attestation.log 2>&1; then
+        return 0
+    fi
+    while IFS= read -r line; do err "  $line"; done < /tmp/power-bridge-attestation.log
+    return 1
+}
+
 CHANNEL="stable"
 [ -f "$CHANNEL_FILE" ] && CHANNEL=$(tr -d '[:space:]' < "$CHANNEL_FILE")
+
+AUTO_UPDATE="false"
+[ -f "$AUTO_UPDATE_FILE" ] && AUTO_UPDATE=$(tr -d '[:space:]' < "$AUTO_UPDATE_FILE")
 
 INSTALLED_VERSION="unknown"
 [ -f "$VERSION_FILE" ] && INSTALLED_VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
 
-log "power-bridge update check started | installed=$INSTALLED_VERSION channel=$CHANNEL"
+log "power-bridge update check started | installed=$INSTALLED_VERSION channel=$CHANNEL mode=$MODE auto_update=$AUTO_UPDATE"
 
 # Check internet connectivity (fast, fail-safe)
 if ! curl -fsSL --max-time 5 --head "https://api.github.com" > /dev/null 2>&1; then
@@ -578,11 +765,16 @@ fi
 
 log "Update available: $INSTALLED_VERSION → $LATEST_VERSION"
 
+if [ "$MODE" != "apply" ] && [ "$AUTO_UPDATE" != "true" ]; then
+    log "Update available but not installed automatically. Open the power-bridge web UI and click 'Jetzt aktualisieren', or run: sudo bash $0 apply"
+    exit 0
+fi
+
 BINARY_NAME="power-bridge-${LATEST_VERSION}-linux-armv6"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_VERSION}/${BINARY_NAME}"
 TEMP_BINARY=$(mktemp /tmp/power-bridge-update-XXXXXX)
 
-trap 'rm -f "$TEMP_BINARY" "${BINARY_DEST}.tmp" 2>/dev/null || true' EXIT
+trap 'rm -f "$TEMP_BINARY" "$TEMP_SUMS" "${BINARY_DEST}.tmp" 2>/dev/null || true' EXIT
 
 log "Downloading $DOWNLOAD_URL …"
 if ! curl -fsSL --max-time 120 "$DOWNLOAD_URL" -o "$TEMP_BINARY"; then
@@ -594,8 +786,34 @@ if [ ! -s "$TEMP_BINARY" ]; then
     err "Downloaded file is empty – aborting update"; exit 0
 fi
 
-chmod 755 "$TEMP_BINARY"
 ok "Binary downloaded ($(du -sh "$TEMP_BINARY" | cut -f1))"
+
+SUMS_URL="https://github.com/${REPO}/releases/download/${LATEST_VERSION}/SHA256SUMS"
+TEMP_SUMS=$(mktemp /tmp/power-bridge-sums-XXXXXX)
+if ! curl -fsSL --max-time 30 "$SUMS_URL" -o "$TEMP_SUMS"; then
+    err "Could not download SHA256SUMS – refusing to install an unverified binary"; exit 0
+fi
+EXPECTED_SHA=$(grep " ${BINARY_NAME}\$" "$TEMP_SUMS" 2>/dev/null | awk '{print $1}')
+if [ -z "$EXPECTED_SHA" ]; then
+    err "No checksum entry for $BINARY_NAME in SHA256SUMS – aborting update"; exit 0
+fi
+ACTUAL_SHA=$(sha256sum "$TEMP_BINARY" | awk '{print $1}')
+if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+    err "Checksum mismatch for $BINARY_NAME (expected $EXPECTED_SHA, got $ACTUAL_SHA) – aborting update"; exit 0
+fi
+ok "Checksum verified"
+
+verify_attestation "$TEMP_BINARY"
+ATTESTATION_STATUS=$?
+if [ "$ATTESTATION_STATUS" -eq 1 ]; then
+    err "Build provenance verification failed – aborting update"; exit 0
+elif [ "$ATTESTATION_STATUS" -eq 2 ]; then
+    warn "Build provenance NOT verified (gh CLI unavailable) – proceeding on checksum alone"
+else
+    ok "Build provenance verified (signed by GitHub Actions for $REPO)"
+fi
+
+chmod 755 "$TEMP_BINARY"
 
 # Backup current binary before replacing
 mkdir -p "$SHARE_DIR"
@@ -809,8 +1027,8 @@ ok "boot-watchdog installed and enabled"
 echo -e "\n${GREEN}[12/13]${NC} Installing power-bridge-update.service…"
 cat > /etc/systemd/system/power-bridge-update.service << 'EOF'
 [Unit]
-Description=power-bridge OTA update – check GitHub Releases at boot
-Documentation=https://github.com/fedzzito/power-bridge
+Description=power-bridge update check – check GitHub Releases at boot (does not auto-install)
+Documentation=https://github.com/agento07hdm/power-bridge
 Before=power-bridge.service
 After=network-online.target
 Wants=network-online.target
@@ -818,7 +1036,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/share/power-bridge/update.sh
+ExecStart=/usr/local/share/power-bridge/update.sh check
 TimeoutStartSec=180
 SuccessExitStatus=0 1
 
@@ -857,7 +1075,7 @@ echo -e "${GREEN}║  Access Point: ${AP_SSID}                     ${NC}"
 echo -e "${GREEN}║  Setup URL:    http://${AP_IP}                         ${NC}"
 echo -e "${GREEN}║  Device IP:    http://${IP}                           ${NC}"
 echo -e "${GREEN}╠════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║  OTA updates:  automatic at every boot (stable channel)      ${NC}"
+echo -e "${GREEN}║  OTA updates:  checked at boot, installed manually via web UI ${NC}"
 echo -e "${GREEN}║  Logs:         journalctl -u power-bridge-update             ${NC}"
 echo -e "${GREEN}║  Rollback:     sudo bash $SHARE_DIR/rollback.sh${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"

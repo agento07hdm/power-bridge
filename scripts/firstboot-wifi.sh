@@ -42,7 +42,7 @@
 #   3. SSH-Verbindung herstellen:
 #        ssh pi@<PI_IP>
 #   4. Installation starten:
-#        curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash
+#        curl -fsSL https://raw.githubusercontent.com/agento07hdm/power-bridge/main/install.sh | sudo bash
 #   5. Nach der Installation: WLAN im Web-UI testen (http://<PI_IP>) und über
 #      "WLAN vergessen" den AP-Modus aktivieren.
 #
@@ -221,7 +221,7 @@ echo "       arp -a | grep power-bridge"
 echo "  4. SSH-Verbindung:"
 echo "       ssh pi@<PI_IP>"
 echo "  5. Installation:"
-echo "       curl -fsSL https://raw.githubusercontent.com/fedzzito/power-bridge/main/install.sh | sudo bash"
+echo "       curl -fsSL https://raw.githubusercontent.com/agento07hdm/power-bridge/main/install.sh | sudo bash"
 echo "  6. Nach der Installation unter http://<PI_IP> einloggen."
 echo "     Über 'WLAN vergessen' den AP-Modus aktivieren und testen."
 echo ""
